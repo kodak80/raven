@@ -82,9 +82,8 @@ LINKOBJS = $(LIBCMINI_CRT) $(GCC_OBJS) $(CPUOBJS)
 # DSP Tools
 # -----------------------------------------------------------------------------------
 DSPDIR = $(ROOTDIR)/dsp
-A56DIR = $(DSPDIR)/asm56k
-A56 = $(A56DIR)/build/asm56k
-LOD2P56 = $(A56DIR)/tools/lod2p56
+A56 = $(DSPDIR)/bin/asm56k
+LOD2P56 = $(DSPDIR)/bin/lod2p56
 
 
 # -----------------------------------------------------------------------------------

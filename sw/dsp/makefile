@@ -1,17 +1,28 @@
-A56DIR = asm56k
-A56 = $(A56DIR)/build/asm56k
-AFLAGS = -c 56301
 
 DEPS = asm56k dsp56303.inc
 
 #OBJS = boot.p56 test.p56
+A56 = bin/asm56k
+AFLAGS = -c 56301
 
-.PHONY: $(A56) clean
+.PHONY: clean asm56k dsptools
 
-all: asm56k $(OBJS)
+all: asm56k dsptools $(OBJS)
 
-asm56k: $(A56)
-	make -C $(A56DIR)
+asm56k:
+	make -C asm56k
+	mkdir -p bin
+	cp asm56k/build/asm56k bin/asm56k
+	cp asm56k/tools/cldlod bin/cldlod
+	cp asm56k/tools/lod2p56 bin/lod2p56
+	cp asm56k/tools/cldinfo bin/cldinfo
+
+dsptools:
+	make -C dsptools/asm56000c
+	make -C dsptools/cldlod
+	make -C dsptools/lod2p56
+	mkdir -p bin
+	cp dsptools/asm56000c/asm56000 bin/asm56000
 
 %.p56: %.asm $(DEPS)
 	$(A56) $(AFLAGS) -p $(basename $@).p56 $<
@@ -19,8 +30,10 @@ asm56k: $(A56)
 	$(A56) $(AFLAGS) -e $(basename $@).i56 $<
 	$(A56) $(AFLAGS) -s -o $(basename $@).l56 $<
 
-distclean: clean
-	make -C $(A56DIR) clean
-
-#clean:
-#	rm -f $(OBJS) $(OBJS:.p56=.l56) $(OBJS:.p56=.c56) $(OBJS:.p56=.i56)
+clean:
+	make -C asm56k clean
+	rm -f dsptools/asm56000c/asm56000
+	rm -f dsptools/cldlod/cldlod
+	rm -f dsptools/lod2p56/lod2p56
+	rm -f $(OBJS) $(OBJS:.p56=.l56) $(OBJS:.p56=.c56) $(OBJS:.p56=.i56)
+	rm -f bin/*
