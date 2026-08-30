@@ -40,6 +40,7 @@ static void mmu_Invalid24bit(uint32_t log, uint32_t size) {
     mmu_Invalid(log | 0xff000000, size);
 }
 
+
 /*
 static void mmu_Redirect24bit(uint32_t logsrc, uint32_t logdst, uint32_t size) {
     mmu_Redirect(logsrc & 0x00ffffff, logdst, size);
@@ -185,7 +186,8 @@ bool atari_InitMMU(uint32_t* simms)
 
     // peripheral access flags
     mmu_Map(0x40000000, 0x40000000,   simms[3], PMMU_READONLY  | PMMU_CM_WRITETHROUGH);    // ROM
-    mmu_Map(0x20000000, 0x20000000, 0x00100000, PMMU_READWRITE | PMMU_CM_PRECISE);         // LOCBUS  (uart)
+    mmu_Map(0x20000000, 0x20000000, 0x00100000, PMMU_READWRITE | PMMU_CM_PRECISE);         // LOCBUS  (uart, dsp)
+    mmu_Map(0x20001000, 0x20001000, 0x00001000, PMMU_READWRITE | PMMU_CM_IMPRECISE);       // LOCBUS  (uart, dsp)
     mmu_Map(0xA0000000, 0xA0000000, 0x00100000, PMMU_READWRITE | PMMU_CM_PRECISE);         // EXTBUS  (ide, mfp2)
     mmu_Map(0xA1000000, 0xA1000000, 0x00100000, PMMU_READWRITE | PMMU_CM_PRECISE);         // EXTBUS  (ym, mfp1)
     mmu_Map(0xA2000000, 0xA2000000, 0x00100000, PMMU_READWRITE | PMMU_CM_PRECISE);         // EXTBUS  (unused)
@@ -201,31 +203,34 @@ bool atari_InitMMU(uint32_t* simms)
     extern uint8_t __mon_end;
     uint32_t tosaddr = atari_DetectTos();
     tosaddr = tosaddr ? tosaddr : (uint32_t)&__mon_end;
-    mmu_Map24bit(0x00E00000, tosaddr, 0x00080000, PMMU_READONLY  | PMMU_CM_WRITETHROUGH);
-    mmu_Map24bit(0x00E80000, tosaddr, 0x00080000, PMMU_READONLY  | PMMU_CM_WRITETHROUGH);
+    mmu_Map24bit(0xE00000, tosaddr, 0x00080000, PMMU_READONLY | PMMU_CM_WRITETHROUGH); 			// TOS      ($e00000 -> rom tos)
+    mmu_Map24bit(0xE80000, tosaddr, 0x00080000, PMMU_READONLY | PMMU_CM_WRITETHROUGH); 			// TOS      ($e80000 -> rom tos)
 
     // 0xF00000 : reserved io space
-    mmu_Map24bit(0x00F00000, 0xA0000000, 0x00001000, PMMU_READWRITE | PMMU_CM_PRECISE);  // IDE ($f00000 -> $a0000000)
+    mmu_Map24bit(0xF00000, 0xA0000000, 0x00001000, PMMU_READWRITE | PMMU_CM_PRECISE);			// IDE      ($f00000 -> $a0000000)
 
     rvtoc_t* cart = sys_GetToc(RV_TOC_CART);
     if (cart) {
-        mmu_Map24bit(0x00FA0000, cart->start, cart->size, PMMU_READONLY | PMMU_CM_WRITETHROUGH);
+        mmu_Map24bit(0xFA0000, cart->start, cart->size, PMMU_READONLY | PMMU_CM_WRITETHROUGH);	// CART     ($fa000 -> rom cart)
     }
 
-#if ENABLE_CART_TEST
-    // 0xFA0000 : cart : 128kb
-    // mmu_Map24bit(0x00FA0000, 0x400C0000, 0x00020000, PMMU_READONLY  | PMMU_CM_WRITETHROUGH);
-#endif
     // 0xFC0000 : 192k system rom
 
     // 0xFF0000 : reserved io space
 
     // 0xFF8000 : standard io space, todo: add bus-errors
-    mmu_Map24bit(0x00FF8000, 0xA1000000, 0x00001000, PMMU_READWRITE | PMMU_CM_PRECISE);                     // YM2149   ($ff8800 -> $a1000800)
-    // ACIA : ffffc00 goes to ram0 reserved area  (by help of cpld)                                         // ACIA     ($fffc00 -> BIOS_EMU_MEM)
-    // MFP1 : ffffx00 goes to 0xA1xxxxxx as usual (emu address bits ignored)
-    mmu_Map24bit(0x00FFF000, 0xA1000000 + RV_ACIAEMU_BASE, 0x00001000, PMMU_READWRITE | PMMU_CM_PRECISE);   // MFP1     ($fffa00 -> $a1000a00)
+    mmu_Map24bit(0xFF8000, 0xA1000000, 0x00001000, PMMU_READWRITE | PMMU_CM_PRECISE);			// YM2149   ($ff8800 -> $a1000800)
 
+	// 0xFFA000 : extended / falcon io space
+    // DSP  : ffffa200 goes to 20000200                                       					// DSP      ($ffa200 -> $20000200)
+    // UART : ffffa000 goes to 20000000                                       					// UART     ($ffa000 -> $20000000)
+    mmu_Map24bit(0xFFA000, 0x20000000, 0x00001000, PMMU_READWRITE | PMMU_CM_PRECISE);
+    mmu_Map24bit(0xFFB000, 0x20001000, 0x00001000, PMMU_READWRITE | PMMU_CM_IMPRECISE);
+
+    // ACIA : fffffc00 goes to ram0 reserved area  (by help of cpld)          					// ACIA     ($fffc00 -> BIOS_EMU_MEM)
+    // MFP1 : fffffx00 goes to a1xxxxxx as usual (emu address bits ignored)   					// MFP1     ($fffa00 -> $a1000a00)
+    mmu_Map24bit(0xFFF000, 0xA1000000 + RV_ACIAEMU_BASE, 0x00001000, PMMU_READWRITE | PMMU_CM_PRECISE);    
+    
     // hades compatible ISA I/O to take advantage of existing drivers
     mmu_Redirect(0xFFF30000, 0x81000000, 0x00010000);
     // milan compatible ISA I/O to take advantage of existing drivers

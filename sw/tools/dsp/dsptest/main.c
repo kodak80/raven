@@ -32,7 +32,6 @@
 static uint8_t tempbuf[1024UL * 128 * 3];
 extern void readbuf(uint8_t* buf, uint32_t num);
 
-
 uint8_t* loadfile(char* filename, uint32_t* size) {
 	FILE* f = fopen(filename, "rb");
 	if (f) {
@@ -120,7 +119,6 @@ long test_sram(void)
 	}
 	return result;
 }
-
 
 long supermain(int args, char** argv) {
 	int wordsize = Dsp_GetWordSize();

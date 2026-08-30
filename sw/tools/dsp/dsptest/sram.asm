@@ -34,7 +34,7 @@ start3:
 	do		#62,_l1
 	do		#1024,_l0
 	move	y:(r0)+,a
-	brclr	#M_HTDE,x:<<M_HSR,*
+	jclr	#M_HTDE,x:<<M_HSR,*
 	movep	a1,x:<<M_HTX
 	nop
 _l0:nop
@@ -47,7 +47,7 @@ start4:
 	do		#61,_l1
 	do		#1024,_l0
 	move	x:(r0)+,a
-	brclr	#M_HTDE,x:<<M_HSR,*
+	jclr	#M_HTDE,x:<<M_HSR,*
 	movep	a1,x:<<M_HTX
 	nop
 _l0:nop

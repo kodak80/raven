@@ -76,7 +76,7 @@ UART_MSR		EQU 0x18		; modem status register
 DSP_CTRL1		EQU UART1+UART_MCR
 DSP_CTRL2		EQU	UART2+UART_MCR
 
-DSP_ICR 		EQU 0x20000400
+DSP_ICR 		EQU 0x20000200
 DSP_CVR 		EQU DSP_ICR+0x04
 DSP_ISR 		EQU DSP_ICR+0x08
 DSP_IVR 		EQU DSP_ICR+0x0c
@@ -281,26 +281,30 @@ dsp_execprog:
 	move.l	d0,-(sp)
 	move.w	d1,dsp_program	; set current ability
 
-	; run bootloader
+	; upload and start bootloader
 	moveq.l	#0,d0
 	move.w	dsp_bootloader+7,d0
 	move.l	#dsp_bootloader+9,a0
 	bsr.w	dsp_execboot
 
+.1:; wait for bootloader ready to recieve
+	btst.b	#3,DSP_ISR	; HF2
+	beq.b	.1
+
 	; load program
 	move.l	(sp)+,d0
 	move.l	(sp)+,a0
-	bra.b	.2
-.1:	btst.b	#1,DSP_ISR
-	beq.b	.1
+	bra.b	.3
+.2:	btst.b	#1,DSP_ISR
+	beq.b	.2
 	move.b	(a0)+,DSP_TXH
 	move.b	(a0)+,DSP_TXM
 	move.b	(a0)+,DSP_TXL
-.2:	dbra.w	d0,.1
+.3:	dbra.w	d0,.2
 
 	; run program
-.3:	btst.b	#1,DSP_ISR
-	beq.b	.3
+.4:	btst.b	#1,DSP_ISR
+	beq.b	.4
 	move.b	#0,DSP_TXH
 	move.b	#0,DSP_TXM
 	move.b	#3,DSP_TXL
@@ -333,6 +337,7 @@ dsp_execboot:
 	move.l	a1,a0
 	move.l	d1,d0
 	bsr.w	dsp_boot_send		; data
+	bsr.w	dsp_reset_delay
 	rts
 
 dsp_reset_delay:
@@ -363,12 +368,16 @@ dsp_boot_send:
 
 dsp_send_d0:
 .1:	btst.b	#1,DSP_ISR
+	dsp_boot_delay
 	beq.b	.1
 	swap	d0
+	dsp_boot_delay
 	move.b	d0,DSP_TXH
 	rol.l	#8,d0
+	dsp_boot_delay
 	move.b	d0,DSP_TXM
 	rol.l	#8,d0
+	dsp_boot_delay
 	move.b	d0,DSP_TXL
 	rts
 

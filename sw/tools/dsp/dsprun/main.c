@@ -36,14 +36,11 @@ uint8_t* loadfile(char* filename, uint32_t* size) {
 		s = ftell(f);
 		fseek(f, 0, SEEK_SET);
 		if (s > 0) {
-			p = (uint8_t*)Mxalloc(s+3, 0);
+			p = (uint8_t*)Mxalloc(s, 0);
 			if (p) {
 				fread(p, s, 1, f);
 				fclose(f);
 				*size = s;
-				p[s+0] = 0;
-				p[s+1] = 0;
-				p[s+2] = 3;
 				return p;
 			}
 		}
@@ -54,10 +51,11 @@ uint8_t* loadfile(char* filename, uint32_t* size) {
 
 static uint32_t get32(uint8_t* p) { return ((((uint32_t)p[0]) << 16) | (((uint32_t)p[1])<<8) | (((uint32_t)p[2])<<0)); }
 
-void infoprog(uint8_t* p)
+void infoprog(uint8_t* p, uint32_t len)
 {
-#if 1	
-	while (1)
+#if 1
+	uint8_t* e = (p + len);
+	while (p < e)
 	{
 		char type;
 		uint32_t hdr_space = get32(p+0);
@@ -80,7 +78,7 @@ int loadprog(char* filename) {
 	if (p) {
 		uint32_t len = fsize / 3;
 		printf("Loaded prog %s : %ld words\n", filename, len);
-		infoprog(p);
+		infoprog(p, len);
 		Dsp_ExecProg(p, len, 0);
 		Mfree(p);
 		return 1;

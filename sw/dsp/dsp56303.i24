@@ -1,30 +1,11 @@
 ;------------------------------------------------------------------------
+; 
 ; DSP56303 registers
-; from the user manual but adjusted for 16bit compatibility mode
+; from the user manual and for standard 24bit addressing
 ;
-; Sixteen-Bit Compatibility Mode:
-; Affects addressing functionality, enabling full compatibility with
-; object code written for the DSP56000 family.
-; - When SC is set, MOVE operations to/from any of the following PCU
-;   registers clear the eight MSBs of the destination:
-;   LA, LC, SP, SSL, SSH, EP, SZ, VBA and SC.
-; - If the source is either the SR or OMR, then the eight MSBs of the
-;   destination are also cleared.
-; - If the destination is either the SR or OMR, then the eight MSBs of the
-;   destination are left unchanged.
-; - To change the value of one of the eight MSBs of the SR or OMR, clear SC.
-;
-; SC also affects the contents of the Loop Counter Register.
-; - If SC is cleared (normal operation), then a loop count value of
-;   zero causes the loop body to be skipped,
-;   and a loop count value of $FFFFFF causes the loop to execute the
-;   maximum number of 2^24 – 1 times.
-; - If the SC bit is set, a loop count value of zero causes the loop to
-;   execute 2^16 times, and a loop count value of $FFFFFF
-;   causes the loop to execute 2^16 – 1 times.
 ;------------------------------------------------------------------------
 
-M_START		EQU $0100	; start for user programs
+M_START		EQU $000100	; start for user programs
 
 
 ;*****************************************************************************
@@ -42,18 +23,18 @@ M_START		EQU $0100	; start for user programs
 ;------------------------------------------------------------------------
 
 ; Register Addresses
-M_HDR       EQU $FFC9     ; Host port GPIO data Register
-M_HDDR      EQU $FFC8     ; Host port GPIO direction Register
-M_PCRC      EQU $FFBF     ; Port C Control Register
-M_PRRC      EQU $FFBE     ; Port C Direction Register
-M_PDRC      EQU $FFBD     ; Port C GPIO Data Register
-M_PCRD      EQU $FFAF     ; Port D Control register
-M_PRRD      EQU $FFAE     ; Port D Direction Data Register
-M_PDRD      EQU $FFAD     ; Port D GPIO Data Register
-M_PCRE      EQU $FF9F     ; Port E Control register
-M_PRRE      EQU $FF9E     ; Port E Direction Register
-M_PDRE      EQU $FF9D     ; Port E Data Register
-M_OGDB      EQU $FFFC     ; OnCE GDB Register
+M_HDR       EQU $FFFFC9     ; Host port GPIO data Register
+M_HDDR      EQU $FFFFC8     ; Host port GPIO direction Register
+M_PCRC      EQU $FFFFBF     ; Port C Control Register
+M_PRRC      EQU $FFFFBE     ; Port C Direction Register
+M_PDRC      EQU $FFFFBD     ; Port C GPIO Data Register
+M_PCRD      EQU $FFFFAF     ; Port D Control register
+M_PRRD      EQU $FFFFAE     ; Port D Direction Data Register
+M_PDRD      EQU $FFFFAD     ; Port D GPIO Data Register
+M_PCRE      EQU $FFFF9F     ; Port E Control register
+M_PRRE      EQU $FFFF9E     ; Port E Direction Register
+M_PDRE      EQU $FFFF9D     ; Port E Data Register
+M_OGDB      EQU $FFFFFC     ; OnCE GDB Register
 
 ;------------------------------------------------------------------------
 ;
@@ -62,12 +43,12 @@ M_OGDB      EQU $FFFC     ; OnCE GDB Register
 ;------------------------------------------------------------------------
 
 ; Register Addresses
-M_HCR       EQU $FFC2     ; Host Control Register
-M_HSR       EQU $FFC3     ; Host Status Register
-M_HPCR      EQU $FFC4     ; Host Polarity Control Register
-M_HBAR      EQU $FFC5     ; Host Base Address Register
-M_HRX       EQU $FFC6     ; Host Receive Register
-M_HTX       EQU $FFC7     ; Host Transmit Register
+M_HCR       EQU $FFFFC2     ; Host Control Register
+M_HSR       EQU $FFFFC3     ; Host Status Register
+M_HPCR      EQU $FFFFC4     ; Host Polarity Control Register
+M_HBAR      EQU $FFFFC5     ; Host Base Address Register
+M_HRX       EQU $FFFFC6     ; Host Receive Register
+M_HTX       EQU $FFFFC7     ; Host Transmit Register
 
 ; HCR bits definition
 M_HRIE      EQU $0          ; Host Receive interrupts Enable
@@ -107,16 +88,16 @@ M_HAP       EQU $F          ; Host Acknowledge Polarity
 ;------------------------------------------------------------------------
 
 ; Register Addresses
-M_STXH      EQU $FF97     ; SCI Transmit Data Register (high)
-M_STXM      EQU $FF96     ; SCI Transmit Data Register (middle)
-M_STXL      EQU $FF95     ; SCI Transmit Data Register (low)
-M_SRXH      EQU $FF9A     ; SCI Receive Data Register (high)
-M_SRXM      EQU $FF99     ; SCI Receive Data Register (middle)
-M_SRXL      EQU $FF98     ; SCI Receive Data Register (low)
-M_STXA      EQU $FF94     ; SCI Transmit Address Register
-M_SCR       EQU $FF9C     ; SCI Control Register
-M_SSR       EQU $FF93     ; SCI Status Register
-M_SCCR      EQU $FF9B     ; SCI Clock Control Register
+M_STXH      EQU $FFFF97     ; SCI Transmit Data Register (high)
+M_STXM      EQU $FFFF96     ; SCI Transmit Data Register (middle)
+M_STXL      EQU $FFFF95     ; SCI Transmit Data Register (low)
+M_SRXH      EQU $FFFF9A     ; SCI Receive Data Register (high)
+M_SRXM      EQU $FFFF99     ; SCI Receive Data Register (middle)
+M_SRXL      EQU $FFFF98     ; SCI Receive Data Register (low)
+M_STXA      EQU $FFFF94     ; SCI Transmit Address Register
+M_SCR       EQU $FFFF9C     ; SCI Control Register
+M_SSR       EQU $FFFF93     ; SCI Status Register
+M_SCCR      EQU $FFFF9B     ; SCI Clock Control Register
 
 ; SCI Control Register Bit Flags
 M_WDS       EQU $7          ; Word Select Mask (WDS0-WDS3)
@@ -162,32 +143,32 @@ M_TCM       EQU 15          ; Transmit Clock Source Bit
 ;------------------------------------------------------------------------
 
 ; Register Addresses Of SSI0
-M_TX00      EQU $FFBC     ; SSI0 Transmit Data Register 0
-M_TX01      EQU $FFBB     ; SSIO Transmit Data Register 1
-M_TX02      EQU $FFBA     ; SSIO Transmit Data Register 2
-M_TSR0      EQU $FFB9     ; SSI0 Time Slot Register
-M_RX0       EQU $FFB8     ; SSI0 Receive Data Register
-M_SSISR0    EQU $FFB7     ; SSI0 Status Register
-M_CRB0      EQU $FFB6     ; SSI0 Control Register B
-M_CRA0      EQU $FFB5     ; SSI0 Control Register A
-M_TSMA0     EQU $FFB4     ; SSI0 Transmit Slot Mask Register A
-M_TSMB0     EQU $FFB3     ; SSI0 Transmit Slot Mask Register B
-M_RSMA0     EQU $FFB2     ; SSI0 Receive Slot Mask Register A
-M_RSMB0     EQU $FFB1     ; SSI0 Receive Slot Mask Register B
+M_TX00      EQU $FFFFBC     ; SSI0 Transmit Data Register 0
+M_TX01      EQU $FFFFBB     ; SSIO Transmit Data Register 1
+M_TX02      EQU $FFFFBA     ; SSIO Transmit Data Register 2
+M_TSR0      EQU $FFFFB9     ; SSI0 Time Slot Register
+M_RX0       EQU $FFFFB8     ; SSI0 Receive Data Register
+M_SSISR0    EQU $FFFFB7     ; SSI0 Status Register
+M_CRB0      EQU $FFFFB6     ; SSI0 Control Register B
+M_CRA0      EQU $FFFFB5     ; SSI0 Control Register A
+M_TSMA0     EQU $FFFFB4     ; SSI0 Transmit Slot Mask Register A
+M_TSMB0     EQU $FFFFB3     ; SSI0 Transmit Slot Mask Register B
+M_RSMA0     EQU $FFFFB2     ; SSI0 Receive Slot Mask Register A
+M_RSMB0     EQU $FFFFB1     ; SSI0 Receive Slot Mask Register B
 
 ; Register Addresses Of SSI1
-M_TX10      EQU $FFAC     ; SSI1 Transmit Data Register 0
-M_TX11      EQU $FFAB     ; SSI1 Transmit Data Register 1
-M_TX12      EQU $FFAA     ; SSI1 Transmit Data Register 2
-M_TSR1      EQU $FFA9     ; SSI1 Time Slot Register
-M_RX1       EQU $FFA8     ; SSI1 Receive Data Register
-M_SSISR1    EQU $FFA7     ; SSI1 Status Register
-M_CRB1      EQU $FFA6     ; SSI1 Control Register B
-M_CRA1      EQU $FFA5     ; SSI1 Control Register A
-M_TSMA1     EQU $FFA4     ; SSI1 Transmit Slot Mask Register A
-M_TSMB1     EQU $FFA3     ; SSI1 Transmit Slot Mask Register B
-M_RSMA1     EQU $FFA2     ; SSI1 Receive Slot Mask Register A
-M_RSMB1     EQU $FFA1     ; SSI1 Receive Slot Mask Register B
+M_TX10      EQU $FFFFAC     ; SSI1 Transmit Data Register 0
+M_TX11      EQU $FFFFAB     ; SSI1 Transmit Data Register 1
+M_TX12      EQU $FFFFAA     ; SSI1 Transmit Data Register 2
+M_TSR1      EQU $FFFFA9     ; SSI1 Time Slot Register
+M_RX1       EQU $FFFFA8     ; SSI1 Receive Data Register
+M_SSISR1    EQU $FFFFA7     ; SSI1 Status Register
+M_CRB1      EQU $FFFFA6     ; SSI1 Control Register B
+M_CRA1      EQU $FFFFA5     ; SSI1 Control Register A
+M_TSMA1     EQU $FFFFA4     ; SSI1 Transmit Slot Mask Register A
+M_TSMB1     EQU $FFFFA3     ; SSI1 Transmit Slot Mask Register B
+M_RSMA1     EQU $FFFFA2     ; SSI1 Receive Slot Mask Register A
+M_RSMB1     EQU $FFFFA1     ; SSI1 Receive Slot Mask Register B
 
 ; SSI Control Register A Bit Flags
 M_PM        EQU $FF         ; Prescale Modulus Select Mask (PM0-PM7)
@@ -257,8 +238,8 @@ M_SSRSB     EQU $FFFF       ; SSI Receive Slot Bits Mask B (RS16-RS31)
 ;------------------------------------------------------------------------
 
 ; Register Addresses
-M_IPRC      EQU $FFFF     ; Interrupt Priority Register Core
-M_IPRP      EQU $FFFE     ; Interrupt Priority Register Peripheral
+M_IPRC      EQU $FFFFFF     ; Interrupt Priority Register Core
+M_IPRP      EQU $FFFFFE     ; Interrupt Priority Register Peripheral
 
 ; Interrupt Priority Register Core (IPRC)
 M_IAL       EQU $7          ; IRQA Mode Mask
@@ -320,24 +301,24 @@ M_T0L1      EQU 9           ; TIMER Interrupt Priority Level (high)
 ;---------------------------------------------------------------
 
 ; Register Addresses Of TIMER0
-M_TCSR0     EQU $FF8F     ; TIMER0 Control/Status Register
-M_TLR0      EQU $FF8E     ; TIMER0 Load Reg
-M_TCPR0     EQU $FF8D     ; TIMER0 Compare Register
-M_TCR0      EQU $FF8C     ; TIMER0 Count Register
+M_TCSR0     EQU $FFFF8F     ; TIMER0 Control/Status Register
+M_TLR0      EQU $FFFF8E     ; TIMER0 Load Reg
+M_TCPR0     EQU $FFFF8D     ; TIMER0 Compare Register
+M_TCR0      EQU $FFFF8C     ; TIMER0 Count Register
 
 ; Register Addresses Of TIMER1
-M_TCSR1     EQU $FF8B     ; TIMER1 Control/Status Register
-M_TLR1      EQU $FF8A     ; TIMER1 Load Reg
-M_TCPR1     EQU $FF89     ; TIMER1 Compare Register
-M_TCR1      EQU $FF88     ; TIMER1 Count Register
+M_TCSR1     EQU $FFFF8B     ; TIMER1 Control/Status Register
+M_TLR1      EQU $FFFF8A     ; TIMER1 Load Reg
+M_TCPR1     EQU $FFFF89     ; TIMER1 Compare Register
+M_TCR1      EQU $FFFF88     ; TIMER1 Count Register
 
 ; Register Addresses Of TIMER2
-M_TCSR2     EQU $FF87     ; TIMER2 Control/Status Register
-M_TLR2      EQU $FF86     ; TIMER2 Load Reg
-M_TCPR2     EQU $FF85     ; TIMER2 Compare Register
-M_TCR2      EQU $FF84     ; TIMER2 Count Register
-M_TPLR      EQU $FF83     ; TIMER Prescaler Load Register
-M_TPCR      EQU $FF82     ; TIMER Prescaler Count Register
+M_TCSR2     EQU $FFFF87     ; TIMER2 Control/Status Register
+M_TLR2      EQU $FFFF86     ; TIMER2 Load Reg
+M_TCPR2     EQU $FFFF85     ; TIMER2 Compare Register
+M_TCR2      EQU $FFFF84     ; TIMER2 Count Register
+M_TPLR      EQU $FFFF83     ; TIMER Prescaler Load Register
+M_TPCR      EQU $FFFF82     ; TIMER Prescaler Count Register
 
 ; Timer Control/Status Register Bit Flags
 M_TE        EQU 0           ; Timer Enable
@@ -371,47 +352,47 @@ M_TC3       EQU 7           ; Timer Control 3
 ;------------------------------------------------------------------------
 
 ; Register Addresses Of DMA
-M_DSTR      EQU $FFF4     ; DMA Status Register
-M_DOR0      EQU $FFF3     ; DMA Offset Register 0
-M_DOR1      EQU $FFF2     ; DMA Offset Register 1
-M_DOR2      EQU $FFF1     ; DMA Offset Register 2
-M_DOR3      EQU $FFF0     ; DMA Offset Register 3
+M_DSTR      EQU $FFFFF4     ; DMA Status Register
+M_DOR0      EQU $FFFFF3     ; DMA Offset Register 0
+M_DOR1      EQU $FFFFF2     ; DMA Offset Register 1
+M_DOR2      EQU $FFFFF1     ; DMA Offset Register 2
+M_DOR3      EQU $FFFFF0     ; DMA Offset Register 3
 
 ; Register Addresses Of DMA0
-M_DSR0      EQU $FFEF     ; DMA0 Source Address Register
-M_DDR0      EQU $FFEE     ; DMA0 Destination Address Register 
-M_DCO0      EQU $FFED     ; DMA0 Counter
-M_DCR0      EQU $FFEC     ; DMA0 Control Register
+M_DSR0      EQU $FFFFEF     ; DMA0 Source Address Register
+M_DDR0      EQU $FFFFEE     ; DMA0 Destination Address Register 
+M_DCO0      EQU $FFFFED     ; DMA0 Counter
+M_DCR0      EQU $FFFFEC     ; DMA0 Control Register
 
 ; Register Addresses Of DMA1
-M_DSR1      EQU $FFEB     ; DMA1 Source Address Register
-M_DDR1      EQU $FFEA     ; DMA1 Destination Address Register
-M_DCO1      EQU $FFE9     ; DMA1 Counter
-M_DCR1      EQU $FFE8     ; DMA1 Control Register
+M_DSR1      EQU $FFFFEB     ; DMA1 Source Address Register
+M_DDR1      EQU $FFFFEA     ; DMA1 Destination Address Register
+M_DCO1      EQU $FFFFE9     ; DMA1 Counter
+M_DCR1      EQU $FFFFE8     ; DMA1 Control Register
 
 ; Register Addresses Of DMA2
-M_DSR2      EQU $FFE7     ; DMA2 Source Address Register
-M_DDR2      EQU $FFE6     ; DMA2 Destination Address Register
-M_DCO2      EQU $FFE5     ; DMA2 Counter
-M_DCR2      EQU $FFE4     ; DMA2 Control Register
+M_DSR2      EQU $FFFFE7     ; DMA2 Source Address Register
+M_DDR2      EQU $FFFFE6     ; DMA2 Destination Address Register
+M_DCO2      EQU $FFFFE5     ; DMA2 Counter
+M_DCR2      EQU $FFFFE4     ; DMA2 Control Register
 
 ; Register Addresses Of DMA4
-M_DSR3      EQU $FFE3     ; DMA3 Source Address Register
-M_DDR3      EQU $FFE2     ; DMA3 Destination Address Register
-M_DCO3      EQU $FFE1     ; DMA3 Counter
-M_DCR3      EQU $FFE0     ; DMA3 Control Register
+M_DSR3      EQU $FFFFE3     ; DMA3 Source Address Register
+M_DDR3      EQU $FFFFE2     ; DMA3 Destination Address Register
+M_DCO3      EQU $FFFFE1     ; DMA3 Counter
+M_DCR3      EQU $FFFFE0     ; DMA3 Control Register
 
 ; Register Addresses Of DMA4
-M_DSR4      EQU $FFDF     ; DMA4 Source Address Register
-M_DDR4      EQU $FFDE     ; DMA4 Destination Address Register
-M_DCO4      EQU $FFDD     ; DMA4 Counter
-M_DCR4      EQU $FFDC     ; DMA4 Control Register
+M_DSR4      EQU $FFFFDF     ; DMA4 Source Address Register
+M_DDR4      EQU $FFFFDE     ; DMA4 Destination Address Register
+M_DCO4      EQU $FFFFDD     ; DMA4 Counter
+M_DCR4      EQU $FFFFDC     ; DMA4 Control Register
 
 ; Register Addresses Of DMA5
-M_DSR5      EQU $FFDB     ; DMA5 Source Address Register
-M_DDR5      EQU $FFDA     ; DMA5 Destination Address Register
-M_DCO5      EQU $FFD9     ; DMA5 Counter
-M_DCR5      EQU $FFD8     ; DMA5 Control Register
+M_DSR5      EQU $FFFFDB     ; DMA5 Source Address Register
+M_DDR5      EQU $FFFFDA     ; DMA5 Destination Address Register
+M_DCO5      EQU $FFFFD9     ; DMA5 Counter
+M_DCR5      EQU $FFFFD8     ; DMA5 Control Register
 
 ; DMA Control Register
 M_DSS       EQU $3          ; DMA Source Space Mask
@@ -461,7 +442,7 @@ M_DCH2      EQU 11          ; DMA Active Channel 2
 ;---------------------------------------------------------------
 
 ; Register Addresses Of PLL
-M_PCTL      EQU $FFFD     ; PLL Control Register
+M_PCTL      EQU $FFFFFD     ; PLL Control Register
 
 ; PLL Control Register
 M_MF        EQU $FFF        ; Multiplication Factor Bits Mask (MF0-MF11)
@@ -480,13 +461,13 @@ M_PD        EQU $F00000     ; PreDivider Factor Bits Mask (PD0-PD3)
 ;---------------------------------------------------------------
 
 ; Register Addresses Of BIU
-M_BCR       EQU $FFFB     ; Bus Control Register
-M_DCR       EQU $FFFA     ; DRAM Control Register
-M_AAR0      EQU $FFF9     ; Address Attribute Register 0
-M_AAR1      EQU $FFF8     ; Address Attribute Register 1
-M_AAR2      EQU $FFF7     ; Address Attribute Register 2
-M_AAR3      EQU $FFF6     ; Address Attribute Register 3
-M_IDR       EQU $FFF5     ; ID Register
+M_BCR       EQU $FFFFFB     ; Bus Control Register
+M_DCR       EQU $FFFFFA     ; DRAM Control Register
+M_AAR0      EQU $FFFFF9     ; Address Attribute Register 0
+M_AAR1      EQU $FFFFF8     ; Address Attribute Register 1
+M_AAR2      EQU $FFFFF7     ; Address Attribute Register 2
+M_AAR3      EQU $FFFFF6     ; Address Attribute Register 3
+M_IDR       EQU $FFFFF5     ; ID Register
 
 ; Bus Control Register
 M_BA0W      EQU $1F         ; Area 0 Wait Control Mask (BA0W0-BA0W4)

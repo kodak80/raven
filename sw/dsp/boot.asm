@@ -77,11 +77,9 @@
 	ds 2			; $7e
 
 ;--------------------------------------------------------------
-;
-; resident host vector functions
-;
+; $80-$ff are more user vectors
+; but we use it for loader code
 ;--------------------------------------------------------------
-;	ds ($80-*)
 p56recv:
 	bset	#M_HF2,x:<<M_HCR		; set HF2 to indicate ready
 	jclr	#M_HRDF,x:<<M_HSR,*		; wait for header:space
@@ -103,35 +101,39 @@ p56recv:
 _pwrite:
 	do		r1,_1
 	jclr	#M_HRDF,x:<<M_HSR,*
-	nop
 	movep	x:<<M_HRX,p:(r0)+
-_1:	jmp		<p56recv
+	nop
+_1:	nop
+	jmp		<p56recv
 _xwrite
 	do		r1,_2
 	jclr	#M_HRDF,x:<<M_HSR,*
-	nop
 	movep	x:<<M_HRX,x:(r0)+
-_2:	jmp		<p56recv
+	nop
+_2:	nop
+	jmp		<p56recv
 _ywrite
 	do		r1,_3
 	jclr	#M_HRDF,x:<<M_HSR,*
-	nop
 	movep	x:<<M_HRX,y:(r0)+
-_3:	jmp		<p56recv
+	nop
+_3: nop
+	jmp		<p56recv
 _done:
 	bclr	#M_HF2,x:<<M_HCR		; clear HF2 to indicate done
+	bclr	#M_HF3,x:<<M_HCR		; clear HF3 to indicate done
 	jmp		<$0000
 p56recv_end:
 
-
 ;--------------------------------------------------------------
 ;
-; setup, overwritten by loaded programs
+; setup after coming out of reset
 ;
 ;--------------------------------------------------------------
 	ds	(M_START-*)
-
 setup:
+	bset	#M_HF3,x:<<M_HCR		; HF3=1
+	bclr	#M_HF2,x:<<M_HCR		; HF2=0
 
 	;--------------------------------------------------------------
 	; clock
@@ -232,6 +234,14 @@ setup:
 	bset	#M_HCIE,x:<<M_HCR		; HI08 command interrupts enabled
 	bset	#M_I1,sr				; IPL2
 	bclr	#M_I0,sr
+
+	;--------------------------------------------------------------
+	; 16bit compatibility
+	;--------------------------------------------------------------
+	bset	#M_SC,sr				; enable 16bit compatibility
+	nop
+	nop
+	nop
 
 	;--------------------------------------------------------------
 	; p56 load

@@ -1,5 +1,5 @@
 //------------------------------------------------------------------------------
-// Copyright Anders Granlund 2024-2025.
+// Copyright Anders Granlund 2024-2026.
 // This source describes Open Hardware and is licensed under the CERN-OHLW v2
 // You may redistribute and modify this documentation and make products
 // using it under the terms of the CERN-OHL-W v2 (https:/cern.ch/cern-ohl).
@@ -10,7 +10,7 @@
 //------------------------------------------------------------------------------
 Name     Nessi ;
 PartNo   00 ;
-Date     2026-06-27 ;
+Date     2026-08-04 ;
 Revision 01 ;
 Designer Anders Granlund ;
 Company  HappyDaze ;
@@ -186,9 +186,9 @@ DECODE_SIMM0        = [A31..0]:'b'000XXX00XXXXXXXXXXXXXXXXXXXXXXXX;    // $00000
 DECODE_SIMM1        = [A31..0]:'b'000XXX01XXXXXXXXXXXXXXXXXXXXXXXX;    // $01000000
 DECODE_SIMM2        = [A31..0]:'b'000XXX10XXXXXXXXXXXXXXXXXXXXXXXX;    // $02000000
 DECODE_SIMM3        = [A31..0]:'b'010XXX00XXXXXXXXXXXXXXXXXXXXXXXX;    // $40000000
-DECODE_UART         = [A31..0]:'b'001XXX00XXXXXXXXXXXXX0XXXXXXXXXX;    // $20000000
-DECODE_DSP          = [A31..0]:'b'001XXX00XXXXXXXXXXXXX1XXX0XXXXXX;    // $20000400
-
+DECODE_UART         = [A31..0]:'b'001XXX00XXXXXXXXXXXXXX0XXXXXXXXX;    // $20000000		($ffa000)
+DECODE_DSP          = [A31..0]:'b'001XXX00XXXXXXXXXXXXXX1XXXXXXXXX;    // $20000200		($ffa200)
+// todo: decode SFP004 for triggering bus error
 
 //------------------------------------------------------------------------------
 //

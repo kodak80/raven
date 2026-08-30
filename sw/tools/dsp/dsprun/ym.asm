@@ -56,7 +56,9 @@ sys_start:
 	bset	#M_S0L1,x:<<M_IPRP
 	bset	#M_SSRIE,x:<<M_CRB0		; ESSI0 rx int enable
 
-	movec	#0,sr					; IPL0
+	bclr	#M_I0,sr				; IPL0
+	bclr	#M_I1,sr
+
 	jset	#M_RFS,x:<<M_SSISR0,*	; sync to left sample
 	jclr	#M_RFS,x:<<M_SSISR0,*
 
