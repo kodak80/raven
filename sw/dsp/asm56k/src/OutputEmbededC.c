@@ -143,7 +143,6 @@ void SaveFileEmbededC(const char *name)
 			}
 		}
 	}
-	fprintf(output_file, "0x0,0x0,0x3\n");	/* memtype 3 is a terminator */
 	fprintf(output_file, "};\n");
 
 	fclose(output_file);
