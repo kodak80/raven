@@ -240,6 +240,11 @@ copysw:
 	$(MAKE) -C $(ROOTDIR)/sw/dsp/asm56k clean
 	$(MKDIR) $(SWDIR_TOOLS)/dsp/dsptools
 	unzip $(SUPPDIR)/dsptools.zip -d $(SWDIR_TOOLS)/dsp
+	$(MKDIR) $(SWDIR_TOOLS)/dsp/dsptest
+	$(COPY) $(ROOTDIR)/sw/tools/dsp/dsptest/dsptest.tos $(SWDIR_TOOLS)/dsp/dsptest/
+	$(MKDIR) $(SWDIR_TOOLS)/dsp/dsprun
+	$(COPY) $(ROOTDIR)/sw/tools/dsp/dsprun/dsprun.tos $(SWDIR_TOOLS)/dsp/dsprun/
+	$(COPY) $(ROOTDIR)/sw/tools/dsp/dsprun/*.p56 $(SWDIR_TOOLS)/dsp/dsprun/
 
 	# --------------------------------------------------
 	# ISA BIOS
