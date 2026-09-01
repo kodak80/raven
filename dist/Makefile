@@ -230,15 +230,16 @@ copysw:
 	$(MAKE) -C $(ROOTDIR)/sw/dsp/asm56k clean
 	$(MAKE) -C $(ROOTDIR)/sw/dsp/asm56k clean CROSS=yes
 	$(MAKE) -C $(ROOTDIR)/sw/dsp/asm56k CROSS=yes
-	$(COPY) $(ROOTDIR)/sw/dsp/asm56k/build/*.ttp $(SWDIR_TOOLS)/dsp/asm56k/
-	$(COPY) $(ROOTDIR)/sw/dsp/asm56k/tools/*.ttp $(SWDIR_TOOLS)/dsp/asm56k/
+	$(COPY) $(ROOTDIR)/sw/dsp/asm56k/build/asm56k.ttp $(SWDIR_TOOLS)/dsp/asm56k/
+	$(COPY) $(ROOTDIR)/sw/dsp/asm56k/tools/cldlod.ttp $(SWDIR_TOOLS)/dsp/asm56k/
+	$(COPY) $(ROOTDIR)/sw/dsp/asm56k/tools/lod2p56.ttp $(SWDIR_TOOLS)/dsp/asm56k/
 	$(COPY) $(ROOTDIR)/sw/dsp/asm56k/docs/readme.txt $(SWDIR_TOOLS)/dsp/asm56k/
 	$(COPY) $(ROOTDIR)/sw/dsp/asm56k/COPYING $(SWDIR_TOOLS)/dsp/asm56k/
 	$(COPY) $(ROOTDIR)/sw/dsp/dsp56303.inc $(SWDIR_TOOLS)/dsp/asm56k/
-	$(COPY) $(ROOTDIR)/sw/dsp/boot.asm $(SWDIR_TOOLS)/dsp/asm56k/
 	$(MAKE) -C $(ROOTDIR)/sw/dsp/asm56k clean CROSS=yes
 	$(MAKE) -C $(ROOTDIR)/sw/dsp/asm56k clean
-
+	$(MKDIR) $(SWDIR_TOOLS)/dsp/dsptools
+	unzip $(SUPPDIR)/dsptools.zip -d $(SWDIR_TOOLS)/dsp
 
 	# --------------------------------------------------
 	# ISA BIOS
