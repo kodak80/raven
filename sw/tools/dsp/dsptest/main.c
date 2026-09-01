@@ -29,43 +29,10 @@
 #include "raven.h"
 #include "sysutil.h"
 
-static uint8_t tempbuf[1024UL * 128 * 3];
+#include "dsp_sram.c56"
+
+static uint8_t tempbuf[1024UL * 64 * 3];
 extern void readbuf(uint8_t* buf, uint32_t num);
-
-uint8_t* loadfile(char* filename, uint32_t* size) {
-	FILE* f = fopen(filename, "rb");
-	if (f) {
-		uint8_t* p = 0;
-		uint32_t s = 0;
-		fseek(f, 0, SEEK_END);
-		s = ftell(f);
-		fseek(f, 0, SEEK_SET);
-		if (s > 0) {
-			p = (uint8_t*)Mxalloc(s, 0);
-			if (p) {
-				fread(p, s, 1, f);
-				fclose(f);
-				*size = s;
-				return p;
-			}
-		}
-		fclose(f);
-	}
-	return 0;
-}
-
-int loadprog(char* filename) {
-	uint32_t fsize = 0;
-	uint8_t* p = loadfile(filename, &fsize);
-	if (p) {
-		uint32_t len = fsize / 3;
-		printf("Loaded prog %s : %ld words\n", filename, len);
-		Dsp_ExecProg(p, len, 0);
-		Mfree(p);
-		return 1;
-	}
-	return 0;
-}
 
 long test_sram(void)
 {
@@ -73,7 +40,7 @@ long test_sram(void)
 	long result = 0;
 
 	printf("load\n");
-	loadprog("testram.p56");
+	Dsp_ExecProg(EmbededP56_dsp_sram, sizeof(EmbededP56_dsp_sram)/3, 0);
 
 	printf("read\n");
 	for (i=0; i<62; i++) {
@@ -121,8 +88,8 @@ long test_sram(void)
 }
 
 long supermain(int args, char** argv) {
-	int wordsize = Dsp_GetWordSize();
-	printf("wordsize = %d\n", wordsize);
+	(void)args; (void)argv;
+	printf("wordsize = %d\n", Dsp_GetWordSize());
 	test_sram();
 	return 0;
 }
