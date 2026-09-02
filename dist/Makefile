@@ -137,7 +137,7 @@ upload: github_delete_release github_create_release
 
 .phony: github_delete_release
 github_delete_release:
-	gh release delete $(RELEASE_TAG) --cleanup-tag -y
+	-gh release delete $(RELEASE_TAG) --cleanup-tag -y
 
 .phony: github_create_release
 github_create_release:
