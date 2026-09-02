@@ -1,7 +1,7 @@
 Raven 68060
 Hardware and software binary release
 
-260713:
+260902:
 
   rom:
     - rvbios is now in rom.
@@ -10,9 +10,10 @@ Hardware and software binary release
     - ability to flash ROM from bios setup screen
     - ability to flash CKBD firmware from bios setup screen
     - monitor can be launched from bios setup screen
+	- TOS terminal can be launched from bios setup screen
     - wip pram support in flash
     - bios confs now in pram instead of rtc-nvram
-	- fix emutos hang on boot if ikbd fifo contains stale data
+	- fix emutos hang on boot if ikbd fifo contain stale data
 	- autodetect board revision A1 or A2
 	- (A2) YM volume control support
 	- (A2) Internal speaker support
@@ -24,6 +25,8 @@ Hardware and software binary release
 	- Added Rev.A2 gerbers and bom
 
   software:
+    pgusinit: v3.9.0c for firmware v4.1.1 and above
     rvsnd: fixed midi xbios crash
     uiptool: fixed random ftp server bug
-    asm56k: added dsp toolchain
+    (A2) dsp: added opensource asm56k tools
+	(A2) dsp: added falcon asm56000 tools
