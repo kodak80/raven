@@ -26,8 +26,7 @@ Hardware and software binary release
     - pgusinit: v3.9.0c for firmware v4.1.1 and above
     - rvsnd: fixed midi xbios crash
     - uiptool: fixed random ftp server bug
-    - (A2) dsp: added opensource asm56k tools
-	- (A2) dsp: added falcon asm56000 tools
+    - (A2) dsp: compilers and some tools
 260406:
   rom (bios)
     faster vgabios x86emu
