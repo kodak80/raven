@@ -3,9 +3,9 @@
 # ------------------------------------------------------------------- 
 
 DATE			= $(shell date +%Y%m%d)
-RELEASE_TAG		= Raven.A1.latest
-RELEASE_DESC	= Raven.A1.$(DATE)
-RELEASE_ZIP		= raven_a1_$(DATE).zip
+RELEASE_TAG		= Raven.$(DATE)
+RELEASE_DESC	= Raven.$(DATE)
+RELEASE_ZIP		= raven_$(DATE).zip
 
 # ------------------------------------------------------------------- 
 
@@ -164,7 +164,7 @@ copysw:
 	# --------------------------------------------------
 	$(MAKE) -C $(ROOTDIR)/sw/rvbios clean
 	$(MAKE) -C $(ROOTDIR)/sw/rvbios
-	$(COPY) $(ROOTDIR)/sw/rvbios/rvbios.prg $(SWDIR_AUTO)/
+	#$(COPY) $(ROOTDIR)/sw/rvbios/rvbios.prg $(SWDIR_AUTO)/
 
 
 	# --------------------------------------------------
