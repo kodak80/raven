@@ -80,9 +80,11 @@ DSP_ICR 		EQU 0x20000200
 DSP_CVR 		EQU DSP_ICR+0x04
 DSP_ISR 		EQU DSP_ICR+0x08
 DSP_IVR 		EQU DSP_ICR+0x0c
+DSP_TXX			EQU DSP_ICR+0x10
 DSP_TXH			EQU DSP_ICR+0x14
 DSP_TXM			EQU DSP_ICR+0x18
 DSP_TXL			EQU DSP_ICR+0x1c
+DSP_RXX			EQU DSP_TXX
 DSP_RXH			EQU DSP_TXH
 DSP_RXM			EQU DSP_TXM
 DSP_RXL			EQU DSP_TXL
@@ -189,36 +191,257 @@ InstallTrap14Dsp:
 ;----------------------------------------------------------		## todo
 ;		0x0060	void Dsp_DoBlock(i8* in, i32 size_in, i8* out, i32 size_out)
 xb_dsp_doblock:
-	rte
+	move.l	(a0)+,a1		; a1 = input buffer
+	move.l	(a0)+,d1		; d1 = input size
+	beq.b	.3
+	subq.l	#1,d1
+	move.l	#DSP_TXH,a2
+.1:	btst	#1,DSP_ISR		; wait for dsp recv ready
+	beq.b	.1
+.2:	move.l	(a1),d0
+	rol.l	#8,d0
+	move.b	d0,0(a2)
+	rol.l	#8,d0
+	move.b	d0,4(a2)
+	rol.l	#8,d0
+	move.b	d0,8(a2)
+	addq.l	#3,a1
+	dbra	d1,.2
+.3:	move.l	(a0)+,a1		; a1 = output buffer
+	move.l	(a0),d1			; d1 = output size
+	beq.b	.6
+	subq.l	#1,d1
+	move.l	#DSP_RXH,a2
+.4:	btst	#0,DSP_ISR		; wait for dsp send ready
+	beq.b	.4
+.5:	move.b	0(a2),(a1)+
+	move.b	4(a2),(a1)+
+	move.b	8(a2),(a1)+
+	dbra	d1,.5
+.6:	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x0061	void Dsp_BlkHandShake(i8* in, i32 size_in, i8* out, i32 size_out)
 xb_dsp_blkhandshake:
-	rte
+	move.l	(a0)+,a1		; a1 = input buffer
+	move.l	(a0)+,d1		; d1 = input size
+	beq.b	.3
+	subq.l	#1,d1
+	move.l	#DSP_TXH,a2
+.1:	btst	#1,DSP_ISR		; wait for dsp recv ready
+	beq.b	.1
+	move.l	(a1),d0
+	rol.l	#8,d0
+	move.b	d0,0(a2)
+	rol.l	#8,d0
+	move.b	d0,4(a2)
+	rol.l	#8,d0
+	move.b	d0,8(a2)
+	addq.l	#3,a1
+	dbra	d1,.1
+.3:	move.l	(a0)+,a1		; a1 = output buffer
+	move.l	(a0),d1			; d1 = output size
+	beq.b	.6
+	subq.l	#1,d1
+	move.l	#DSP_RXH,a2
+.4:	btst	#0,DSP_ISR		; wait for dsp send ready
+	beq.b	.4
+	move.b	0(a2),(a1)+
+	move.b	4(a2),(a1)+
+	move.b	8(a2),(a1)+
+	dbra	d1,.4
+.6:	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x0062	void Dsp_BlkUnpacked(i32* in, i32 size_in, i32* out, i32_size_out)
 xb_dsp_blkunpacked:
-	rte
+	move.l	(a0)+,a1		; a1 = input buffer
+	move.l	(a0)+,d1		; d1 = input size
+	beq.b	.3
+	subq.l	#1,d1
+	move.l	#DSP_TXH,a2
+.1:	btst	#1,DSP_ISR		; wait for dsp recv ready
+	beq.b	.1
+.2:	move.l	(a1)+,d0
+	swap	d0
+	move.b	d0,0(a2)
+	rol.l	#8,d0
+	move.b	d0,4(a2)
+	rol.l	#8,d0
+	move.b	d0,8(a2)
+	dbra	d1,.2
+.3:	move.l	(a0)+,a1		; a1 = output buffer
+	move.l	(a0),d1			; d1 = output size
+	beq.b	.6
+	subq.l	#1,d1
+	move.l	#DSP_RXH,a2
+.4:	btst	#0,DSP_ISR		; wait for dsp send ready
+	beq.b	.4
+.5:	moveq.l	#0,d0
+	move.b	0(a2),d0
+	lsl.l	#8,d0
+	move.b	4(a2),d0
+	lsl.l	#8,d0
+	move.b	8(a2),d0
+	move.l	d0,(a1)+
+	dbra	d1,.5
+.6:	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x0063	void Dsp_InStream(i8* in, i32 block_size, i32 num_blocks, i32* blocks_done)
 xb_dsp_instream:
-	rte
+	move.l	(a0)+,dsp_inbuf
+	move.l	(a0)+,d0
+	move.l	d0,dsp_ibsize
+	move.l	(a0)+,d1
+	move.l	d1,dsp_ibcount
+	move.l	(a0),a0
+	move.l	a0,dsp_ibdone
+	move.l	#0,(a0)			; *ibdone = 0
+	tst.l	d0				; (ibsize == 0) ?
+	beq.b	.1
+	tst.l	d1				; (ibcount == 0) ?
+	beq.b	.1
+	move.l	#dsp_streamvec,$3fc
+	move.b	#255,DSP_IVR
+	ori.b	#2,DSP_ICR
+.1:	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x0064	void Dsp_OutStream(i8* out, i32_block_size, i32 num_blocks, i32* blocks_done)
 xb_dsp_outstream:
-	rte
+	move.l	(a0)+,dsp_outbuf
+	move.l	(a0)+,d0
+	move.l	d0,dsp_obsize
+	move.l	(a0)+,d1
+	move.l	d1,dsp_obcount
+	move.l	(a0),a0
+	move.l	a0,dsp_obdone
+	move.l	#0,(a0)			; *obdone = 0
+	tst.l	d0				; (obsize == 0) ?
+	beq.b	.1
+	tst.l	d1				; (obcount == 0) ?
+	beq.b	.1
+	move.l	#dsp_streamvec,$3fc
+	move.b	#255,DSP_IVR
+	ori.b	#1,DSP_ICR
+.1:	rte
+
+dsp_streamvec:
+	movem.l	d0-d1/a0-a1,-(sp)
+	btst	#0,DSP_ISR
+	beq.b	.2
+	move.l	#DSP_RXH,a1			; recv one block
+	move.l	dsp_outbuf,a0
+	move.l	dsp_obsize,d1
+	subq.l	#1,d1
+.1:	move.b	0(a1),(a0)+
+	move.b	4(a1),(a0)+
+	move.b	8(a1),(a0)+
+	dbra	d1,.1
+	move.l	a0,dsp_outbuf		; update bufptr
+	move.l	dsp_obdone,a0		; update done counter
+	add.l	#1,(a0)
+	move.l	(a0),d0
+	cmp.l	dsp_obcount,d0
+	bne.b	.2					; not done = exit
+	andi.b	#$fe,DSP_ICR		; done = stop interrupt and exit
+	bra.b	.2
+.2:	move.l	#DSP_TXH,a1			; recv one block
+	move.l	dsp_inbuf,a0		; send one block
+	move.l	dsp_ibsize,d1
+	subq.l	#1,d1
+.3:	move.l	(a0),d0
+	rol.l	#8,d0
+	move.b	d0,0(a1)
+	rol.l	#8,d0
+	move.b	d0,4(a1)
+	rol.l	#8,d0
+	move.b	d0,8(a1)
+	addq.l	#3,a0
+	dbra	d1,.3
+	move.l	a0,dsp_inbuf		; update bufptr
+	move.l	dsp_ibdone,a0		; update done counter
+	add.l	#1,(a0)
+	move.l	(a0),d0
+	cmp.l	dsp_ibcount,d0
+	bne.b	.4					; not done, exit
+	andi.b	#$fd,DSP_ICR		; done = stop interrupt
+	movem.l	(sp)+,d0-d1/a0-a1
+.4:	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x0065 	void Dsp_IOStream(i8* in, i8* out, i32 block_insize, i32 block_outsize, i32 num_blocks, i32* blocks_done)
 xb_dsp_iostream:
+	move.l	(a0)+,a1
+	move.l	a1,dsp_inbuf
+	move.l	(a0)+,dsp_outbuf
+	move.l	(a0)+,d1
+	move.l	d0,dsp_ibsize
+	move.l	(a0)+,dsp_obsize
+	move.l	(a0)+,dsp_ibcount
+	move.l	(a0)+,a0
+	move.l	a0,dsp_ibdone
+	move.l	#0,(a0)					; clear done counter
+	move.l	#DSP_TXH,a2
+	subq.l	#1,d1					; send block
+.1:	move.l	(a1),d0
+	rol.l	#8,d0
+	move.b	d0,0(a2)
+	rol.l	#8,d0
+	move.b	d0,4(a2)
+	rol.l	#8,d0
+	move.b	d0,8(a2)
+	addq.l	#3,a1
+	dbra	d1,.1
+	move.l	a1,dsp_inbuf			; update bufptr
+	move.l	#dsp_iostreamvec,$3fc	; enable ints
+	move.b	#255,DSP_IVR
+	ori.b	#1,DSP_ICR
+	rte
+
+dsp_iostreamvec:
+	movem.l	d0-d1/a0-a1,-(sp)
+	move.l	dsp_outbuf,a0			; recv block
+	move.l	dsp_obsize,d1
+	move.l	#DSP_RXH,a1
+	subq.l	#1,d1
+.1:	move.b	0(a1),(a0)+
+	move.b	4(a1),(a0)+
+	move.b	8(a1),(a0)+
+	dbra	d1,.1
+	move.l	a0,dsp_outbuf			; update bufptr
+	move.l	dsp_ibdone,a0			; update done counter
+	addq.l	#1,(a0)
+	move.l	(a0),a0
+	cmp.l	dsp_ibcount,d0
+	bne.b	.2
+	andi.b	#$fe,DSP_ICR			; disable int and exit
+	bra.b	.4
+.2:	move.l	dsp_inbuf,a0			; send block
+	move.l	dsp_ibsize,d1
+	move.l	#DSP_TXH,a1
+	subq.l	#1,d1
+.3:	move.l	(a0),d0
+	rol.l	#8,d0
+	move.b	d0,0(a1)
+	rol.l	#8,d0
+	move.b	d0,4(a1)
+	rol.l	#8,d0
+	move.b	d0,8(a1)
+	addq.l	#3,a0
+	dbra	d1,.3
+	move.l	a0,dsp_inbuf			; update bufptr
+.4:	movem.l	(sp)+,d0-d1/a0-a1
 	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x0066	void Dsp_RemoveInterrupts(i16 mask)
 xb_dsp_removeinterrupts:
+	move.w	(a0),d0
+	and.b	#3,d0	; 1=recv, 2=send, 3=all
+	not.b	d0
+	and.b	d0,DSP_ICR
 	rte
 
 ;----------------------------------------------------------
@@ -510,12 +733,59 @@ xb_dsp_hf3:
 ;----------------------------------------------------------		## todo
 ;		0x007B  void Dsp_BlkWords(void* in, i32 size_in, void* out, i32 size_out)
 xb_dsp_blkwords:
-	rte
+	move.l	(a0)+,a1		; a1 = input buffer
+	move.l	(a0)+,d1		; d1 = input size
+	beq.b	.3
+	subq.l	#1,d1
+	move.l	#DSP_TXH,a2		; a2 = DSP_TXH
+	move.b	#0,(a2)
+.1:	btst	#1,DSP_ISR		; wait for dsp recv ready
+	beq.b	.1
+.2:	move.w	(a1)+,d0
+	rol.w	#8,d0
+	move.b	d0,4(a2)
+	rol.w	#8,d0
+	move.b	d0,8(a2)
+	dbra	d1,.2
+.3:	move.l	(a0)+,a1		; a1 = output buffer
+	move.l	(a0),d1			; d1 = output size
+	beq.b	.6
+	subq.l	#1,d1
+	move.l	#DSP_RXH,a2
+.4:	btst	#0,DSP_ISR		; wait for dsp send ready
+	beq.b	.4
+.5:	move.b	4(a2),d0
+	lsl.w	#8,d0
+	move.b	8(a2),d0
+	move.w	d0,(a1)+
+	dbra	d1,.5
+.6:	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x007C	void Dsp_BlkBytes(void* in, i32 size_in, void* out, i32 size_out)
 xb_dsp_blkbytes:
-	rte
+	move.l	(a0)+,a1		; a1 = input buffer
+	move.l	(a0)+,d1		; d1 = input size
+	beq.b	.3
+	move.l	#DSP_TXH,a2		; a2 = DSP_TXH
+	moveq.l	#0,d0			; d0 = zero
+	subq.l	#1,d1
+	move.b	d0,0(a2)
+	move.b	d0,4(a2)
+.1:	btst	#1,DSP_ISR		; wait for dsp recv ready
+	beq.b	.1
+.2:	move.b	(a1)+,8(a2)
+	dbra	d1,.2
+.3:	move.l	(a0)+,a1		; a1 = output buffer
+	move.l	(a0),d1			; d1 = output size
+	beq.b	.6
+	subq.l	#1,d1
+	move.l	#DSP_RXL,a2		; a2 = DSP_RXL
+.4:	btst	#0,DSP_ISR		; wait for dsp send ready
+	beq.b	.4
+.5:	move.b	(a2),(a1)+
+	dbra	d1,.5
+.6:	rte
 
 ;----------------------------------------------------------
 ;		0x007D	i8	 Dsp_HStat(void)
@@ -527,7 +797,54 @@ xb_dsp_hstat:
 ;----------------------------------------------------------		## todo
 ;		0x007E	void Dsp_SetVectors(void(*recver)(), i32(*transmitter)())
 xb_dsp_setvectors:
+	move.l	#0,dsp_sendfun			; clear send func
+	move.l	#0,dsp_recvfun			; clear recv func
+	move.l	(a0)+,d0				; d0 = recv fun
+	beq.b	.1
+	move.l	d0,dsp_recvfun
+	move.l	#dsp_hreqvec,$3fc		; vec 255 function
+	move.b	#255,DSP_IVR			; set vec 255 on dsp
+	ori.b	#1,DSP_ICR				; rxdf request enable
+.1:	move.l	(a0),d0					; d0 = send fun
+	beq.b	.2
+	move.l	#dsp_hreqvec,$3fc		; vec 255 function
+	move.b	#255,DSP_IVR			; set vec 255 on dsp
+	ori.b	#2,DSP_ICR				; txde request enable
+.2:	rte
+
+dsp_hreqvec:
+	movem.l	d0-d2/a0-a2,-(sp)
+	btst.b	#0,DSP_ISR				; recv request?
+	beq.s	.1
+	move.l	dsp_recvfun,d0
+	beq.s	.1
+	move.l	d0,a0					; a0 = recv func
+	moveq.l	#0,d0					; d0 = dsp word
+	move.b	DSP_RXH,d0
+	rol.l	#8,d0
+	move.b	DSP_RXM,d0
+	rol.l	#8,d0
+	move.b	DSP_RXL,d0
+	move.l	d0,-(sp)				; recvfun(data)
+	jsr		(a0)
+	addq.l	#4,sp
+.1:	btst.b	#1,DSP_ISR				; send request?
+	beq.s	.2
+	move.l	dsp_sendfun,d0
+	beq.s	.2
+	move.l	d0,a0
+	jsr		(a0)					; d0 = sendfun()
+	tst.l	d0						; send if d0 != 0
+	beq.s	.2
+	swap	d0
+	move.b	d0,DSP_TXH
+	rol.l	#8,d0
+	move.b	d0,DSP_TXM
+	rol.l	#8,d0
+	move.b	d0,DSP_TXL
+.2:	movem.l	(sp)+,d0-d2/a0-a2
 	rte
+
 
 ;----------------------------------------------------------		## todo
 ;		0x007F	void Dsp_MultBlocks(i32 numsend, i32 numrecv, DSPBLOCK* sendblocks, DSPBLOCK* recvblocks)
@@ -561,6 +878,20 @@ dsp_subvecs:
 dsp_locked:		dc.w	0
 dsp_ability:	dc.w	0x8000
 dsp_program:	dc.w	0
+
+	.align 4
+dsp_recvfun:	dc.l	0	; app receive func
+dsp_sendfun:	dc.l	0	; app send func
+dsp_inbuf:		dc.l	0	; app input buffer ptr
+dsp_outbuf:		dc.l	0	; app output buffer ptr
+
+dsp_ibsize:		dc.l	0	; input block size
+dsp_ibcount:	dc.l	0	; input block count
+dsp_ibdone:		dc.l	0	; input blocks done
+
+dsp_obsize:		dc.l	0	; output block size
+dsp_obcount:	dc.l	0	; output block count
+dsp_obdone:		dc.l	0	; output blocks done
 
 
 ; ------------------------------------------------------------------------

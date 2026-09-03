@@ -7,7 +7,6 @@ dsptest.tos
 =
 ..\..\..\purec\lib\cstartn.o
 main.c
-asm.s
 ..\..\..\purec\lib\pcsyslib.lib
 ..\..\..\purec\lib\pctoslib.lib
 ..\..\..\purec\lib\pcstdlib.lib

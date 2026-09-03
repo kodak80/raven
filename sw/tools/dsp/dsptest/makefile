@@ -9,8 +9,6 @@ INSTALL_BINS = $(BIN)
 
 ROOTDIR = ../../..
 
-OBJS = main.o asm.o \
-		dsp_sram.c56 \
-		#
+OBJS = main.o dsp_sram.c56
 
 include $(ROOTDIR)/Makefile.cmn

@@ -45,7 +45,7 @@ long test_sram(void)
 	printf("read\n");
 	for (i=0; i<62; i++) {
 		uint32_t addr = 1024UL * (2 + i);
-		readbuf(tempbuf, 1024UL);
+		Dsp_DoBlock(0, 0, tempbuf, 1024UL);
 		for (j=0; j<1024; j++) {
 			uint8_t* ptr = &tempbuf[j * 3];
 			uint32_t r = 0x550000UL | ((1024UL * (2 + i)) + j);
@@ -66,7 +66,7 @@ long test_sram(void)
 
 	for (i=0; i<61; i++) {
 		uint32_t addr = 1024UL * (2 + i);
-		readbuf(tempbuf, 1024UL);
+		Dsp_DoBlock(0, 0, tempbuf, 1024UL);
 		for (j=0; j<1024; j++) {
 			uint8_t* ptr = &tempbuf[j * 3];
 			uint32_t r = 0xaa0000UL | ((1024UL * (2 + i)) + j);
