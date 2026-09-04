@@ -1,6 +1,5 @@
 
 FOLDERS = \
-	dspxbios \
 	dsprun \
 	dsptest \
 	#
