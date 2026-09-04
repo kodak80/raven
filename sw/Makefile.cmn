@@ -70,7 +70,7 @@ CFLAGS = $(OPTS) $(DEFS) $(INCLUDE) -I$(LIBCMINI_INC) \
 
 LFLAGS = -L$(LIBCMINI_LIB) -nodefaultlibs -nostdlib -nostartfiles -lgcc -lcmini -Wl,-Map,$(MAPFILE)
 
-DSPOBJS = $(filter %.p56,$(OBJS)) $(filter %.i56,$(OBJS)) $(filter %.c56,$(OBJS)) $(filter %.lod,$(OBJS))
+DSPOBJS = $(filter %.p56,$(OBJS)) $(filter %.a56,$(OBJS)) $(filter %.c56,$(OBJS)) $(filter %.lod,$(OBJS))
 
 CPUOBJS = $(filter %.o,$(OBJS))
 
@@ -169,5 +169,5 @@ $(A56):
 %.c56: %.$(DSPSRC) $(DSPDEPS)
 	$(A56) $(DSPFLAGS) -k $(basename $@).c56 $<
 
-%.i56: %.$(DSPSRC) $(DSPDEPS)
-	$(A56) $(DSPFLAGS) -e $(basename $@).i56 $<
+%.a56: %.$(DSPSRC) $(DSPDEPS)
+	$(A56) $(DSPFLAGS) -e $(basename $@).a56 $<

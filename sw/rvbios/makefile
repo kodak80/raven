@@ -28,7 +28,7 @@ OBJS = \
 	setup/f_debug.o \
 	setup/f_exit.o \
 	../rvnova/loader/rvnova.o \
-	../dsp/boot.i56 \
+	../dsp/boot.a56 \
 	#
 
 ROOTDIR = ..

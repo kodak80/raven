@@ -988,7 +988,7 @@ dsp_obdone:		dc.l	0	; output blocks done
 ; ------------------------------------------------------------------------
 	.align 4
 dsp_bootloader:
-	.include "../dsp/boot.i56"
+	.include "../dsp/boot.a56"
 dsp_bootloader_end:
 	dc.b	0,0,0,0,0,0,0,0,0
 	.even
