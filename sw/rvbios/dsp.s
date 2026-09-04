@@ -489,7 +489,7 @@ xb_dsp_loadprog:
 	bsr.l	xbc_dsp_lodtobin
 	move.l	(sp)+,a0
 	; verify and run binary
-	cmp.l	#9,d0		; codesize
+	cmp.l	#0,d0		; size
 	ble.b	.1
 	move.w	4(a0),d1	; ability
 	move.l	6(a0),a0	; code

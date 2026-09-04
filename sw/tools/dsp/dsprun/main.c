@@ -36,7 +36,7 @@ uint8_t* loadfile(char* filename, uint32_t* size) {
 		s = ftell(f);
 		fseek(f, 0, SEEK_SET);
 		if (s > 0) {
-			p = (uint8_t*)Mxalloc(s, 0);
+			p = (uint8_t*)Malloc(s);
 			if (p) {
 				fread(p, s, 1, f);
 				fclose(f);
@@ -72,7 +72,7 @@ void infoprog(uint8_t* p, uint32_t len)
 #endif	
 }
 
-int loadprog(char* filename) {
+int loadbin(char* filename) {
 	uint32_t fsize = 0;
 	uint8_t* p = loadfile(filename, &fsize);
 	if (p) {
@@ -81,15 +81,36 @@ int loadprog(char* filename) {
 		infoprog(p, len);
 		Dsp_ExecProg(p, len, 0);
 		Mfree(p);
-		return 1;
+		return 0;
 	}
-	return 0;
+	return -1;
+}
+
+int loadlod(char* filename) {
+	int result = -1;
+	uint8_t* p = Malloc(1024UL * 3 * 128);
+	if (p) {
+#if 0
+		result = Dsp_LoadProg(filename, 0, p);
+#else
+		long len = Dsp_LodToBinary(filename, p);
+		if (len > 0) {
+			printf("Loaded prog %s : %ld words\n", filename, len);
+			infoprog(p, len);
+			Dsp_ExecProg(p, len, 0);
+			result = 0;
+		}
+#endif		
+		Mfree(p);
+	}
+	return result;
 }
 
 long supermain(int args, char** argv) {
-
+	char* fname;
+	int result;
 	if (args < 2) {
-		printf("dsprun <file.p56>\n");
+		printf("dsprun <file.p56/lod>\n");
 		return 0;
 	}
 
@@ -97,12 +118,18 @@ long supermain(int args, char** argv) {
 	/* in case a test program wants to route YM sound through the DSP */
 	raven()->snd_volume(0);
 
-	if (!loadprog(argv[1])) {
-		printf("fail loading %s\n");
-		return -1;
+	fname = argv[1];
+	if (strstr(fname, ".lod") || strstr(fname, ".LOD")) {
+		result = loadlod(fname);
+	} else {
+		result = loadbin(fname);
 	}
 
-	return 0;
+	if (result != 0) {
+		printf("fail loading %s\n");
+	}
+
+	return (long)result;
 }
 
 int main(int args, char** argv) {

@@ -19,6 +19,7 @@ trap14.s
 dsp.s
 xbios.c
 eiffel.s
+dsplod.c
 setup\setup.c
 setup\form_vt.c
 setup\misc.c

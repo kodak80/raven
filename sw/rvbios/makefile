@@ -16,6 +16,7 @@ OBJS = \
 	xbios.o \
 	eiffel.o \
 	dsp.o \
+	dsplod.o \
 	sp060.o \
 	logo.o \
 	setup/setup.o \
