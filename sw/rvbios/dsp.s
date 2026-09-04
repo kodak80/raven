@@ -196,15 +196,15 @@ xb_dsp_doblock:
 	beq.b	.3
 	subq.l	#1,d1
 	move.l	#DSP_TXH,a2
-.1:	btst	#1,DSP_ISR		; wait for dsp recv ready
+.1:	btst	#1,DSP_ISR		; wait dsp ready
 	beq.b	.1
 .2:	move.l	(a1),d0
 	rol.l	#8,d0
-	move.b	d0,0(a2)
+	move.b	d0,0(a2)		; send high
 	rol.l	#8,d0
-	move.b	d0,4(a2)
+	move.b	d0,4(a2)		; send mid
 	rol.l	#8,d0
-	move.b	d0,8(a2)
+	move.b	d0,8(a2)		; send low
 	addq.l	#3,a1
 	dbra	d1,.2
 .3:	move.l	(a0)+,a1		; a1 = output buffer
@@ -212,11 +212,11 @@ xb_dsp_doblock:
 	beq.b	.6
 	subq.l	#1,d1
 	move.l	#DSP_RXH,a2
-.4:	btst	#0,DSP_ISR		; wait for dsp send ready
+.4:	btst	#0,DSP_ISR		; wait dsp ready
 	beq.b	.4
-.5:	move.b	0(a2),(a1)+
-	move.b	4(a2),(a1)+
-	move.b	8(a2),(a1)+
+.5:	move.b	0(a2),(a1)+		; recv high
+	move.b	4(a2),(a1)+		; recv mid
+	move.b	8(a2),(a1)+		; recv low
 	dbra	d1,.5
 .6:	rte
 
@@ -228,15 +228,15 @@ xb_dsp_blkhandshake:
 	beq.b	.3
 	subq.l	#1,d1
 	move.l	#DSP_TXH,a2
-.1:	btst	#1,DSP_ISR		; wait for dsp recv ready
+.1:	btst	#1,DSP_ISR		; wait dsp ready
 	beq.b	.1
 	move.l	(a1),d0
 	rol.l	#8,d0
-	move.b	d0,0(a2)
+	move.b	d0,0(a2)		; send high
 	rol.l	#8,d0
-	move.b	d0,4(a2)
+	move.b	d0,4(a2)		; send mid
 	rol.l	#8,d0
-	move.b	d0,8(a2)
+	move.b	d0,8(a2)		; send low
 	addq.l	#3,a1
 	dbra	d1,.1
 .3:	move.l	(a0)+,a1		; a1 = output buffer
@@ -244,11 +244,11 @@ xb_dsp_blkhandshake:
 	beq.b	.6
 	subq.l	#1,d1
 	move.l	#DSP_RXH,a2
-.4:	btst	#0,DSP_ISR		; wait for dsp send ready
+.4:	btst	#0,DSP_ISR		; wait dsp ready
 	beq.b	.4
-	move.b	0(a2),(a1)+
-	move.b	4(a2),(a1)+
-	move.b	8(a2),(a1)+
+	move.b	0(a2),(a1)+		; recv high
+	move.b	4(a2),(a1)+		; recv mid
+	move.b	8(a2),(a1)+		; recv low
 	dbra	d1,.4
 .6:	rte
 
@@ -260,29 +260,29 @@ xb_dsp_blkunpacked:
 	beq.b	.3
 	subq.l	#1,d1
 	move.l	#DSP_TXH,a2
-.1:	btst	#1,DSP_ISR		; wait for dsp recv ready
+.1:	btst	#1,DSP_ISR		; wait dsp ready
 	beq.b	.1
 .2:	move.l	(a1)+,d0
 	swap	d0
-	move.b	d0,0(a2)
+	move.b	d0,0(a2)		; send high
 	rol.l	#8,d0
-	move.b	d0,4(a2)
+	move.b	d0,4(a2)		; send mid
 	rol.l	#8,d0
-	move.b	d0,8(a2)
+	move.b	d0,8(a2)		; send low
 	dbra	d1,.2
 .3:	move.l	(a0)+,a1		; a1 = output buffer
 	move.l	(a0),d1			; d1 = output size
 	beq.b	.6
 	subq.l	#1,d1
 	move.l	#DSP_RXH,a2
-.4:	btst	#0,DSP_ISR		; wait for dsp send ready
+.4:	btst	#0,DSP_ISR		; wait dsp ready
 	beq.b	.4
-.5:	moveq.l	#0,d0
-	move.b	0(a2),d0
+.5:	moveq.l	#0,d0			; clear top
+	move.b	0(a2),d0		; recv high
 	lsl.l	#8,d0
-	move.b	4(a2),d0
+	move.b	4(a2),d0		; recv mid
 	lsl.l	#8,d0
-	move.b	8(a2),d0
+	move.b	8(a2),d0		; recv low
 	move.l	d0,(a1)+
 	dbra	d1,.5
 .6:	rte
@@ -302,8 +302,8 @@ xb_dsp_instream:
 	beq.b	.1
 	tst.l	d1				; (ibcount == 0) ?
 	beq.b	.1
-	move.l	#dsp_streamvec,$3fc
-	move.b	#255,DSP_IVR
+	move.l	#dsp_streamvec,0x3fc
+	move.b	#0xff,DSP_IVR
 	ori.b	#2,DSP_ICR
 .1:	rte
 
@@ -322,8 +322,8 @@ xb_dsp_outstream:
 	beq.b	.1
 	tst.l	d1				; (obcount == 0) ?
 	beq.b	.1
-	move.l	#dsp_streamvec,$3fc
-	move.b	#255,DSP_IVR
+	move.l	#dsp_streamvec,0x3fc
+	move.b	#0xff,DSP_IVR
 	ori.b	#1,DSP_ICR
 .1:	rte
 
@@ -335,40 +335,40 @@ dsp_streamvec:
 	move.l	dsp_outbuf,a0
 	move.l	dsp_obsize,d1
 	subq.l	#1,d1
-.1:	move.b	0(a1),(a0)+
-	move.b	4(a1),(a0)+
-	move.b	8(a1),(a0)+
+.1:	move.b	0(a1),(a0)+			; recv high
+	move.b	4(a1),(a0)+			; recv mid
+	move.b	8(a1),(a0)+			; recv low
 	dbra	d1,.1
 	move.l	a0,dsp_outbuf		; update bufptr
 	move.l	dsp_obdone,a0		; update done counter
 	add.l	#1,(a0)
 	move.l	(a0),d0
 	cmp.l	dsp_obcount,d0
-	bne.b	.2					; not done = exit
-	andi.b	#$fe,DSP_ICR		; done = stop interrupt and exit
-	bra.b	.2
-.2:	move.l	#DSP_TXH,a1			; recv one block
-	move.l	dsp_inbuf,a0		; send one block
+	bne.b	.4					; not done = exit
+	andi.b	#0xfe,DSP_ICR		; done = stop interrupt and exit
+	bra.b	.4
+.2:	move.l	#DSP_TXH,a1			; send one block
+	move.l	dsp_inbuf,a0
 	move.l	dsp_ibsize,d1
 	subq.l	#1,d1
 .3:	move.l	(a0),d0
 	rol.l	#8,d0
-	move.b	d0,0(a1)
+	move.b	d0,0(a1)			; send high
 	rol.l	#8,d0
-	move.b	d0,4(a1)
+	move.b	d0,4(a1)			; send mid
 	rol.l	#8,d0
-	move.b	d0,8(a1)
+	move.b	d0,8(a1)			; send low
 	addq.l	#3,a0
 	dbra	d1,.3
 	move.l	a0,dsp_inbuf		; update bufptr
 	move.l	dsp_ibdone,a0		; update done counter
-	add.l	#1,(a0)
+	addq.l	#1,(a0)
 	move.l	(a0),d0
 	cmp.l	dsp_ibcount,d0
 	bne.b	.4					; not done, exit
-	andi.b	#$fd,DSP_ICR		; done = stop interrupt
-	movem.l	(sp)+,d0-d1/a0-a1
-.4:	rte
+	andi.b	#0xfd,DSP_ICR		; done = stop interrupt
+.4:	movem.l	(sp)+,d0-d1/a0-a1
+	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x0065 	void Dsp_IOStream(i8* in, i8* out, i32 block_insize, i32 block_outsize, i32 num_blocks, i32* blocks_done)
@@ -387,16 +387,16 @@ xb_dsp_iostream:
 	subq.l	#1,d1					; send block
 .1:	move.l	(a1),d0
 	rol.l	#8,d0
-	move.b	d0,0(a2)
+	move.b	d0,0(a2)				; send high
 	rol.l	#8,d0
-	move.b	d0,4(a2)
+	move.b	d0,4(a2)				; send mid
 	rol.l	#8,d0
-	move.b	d0,8(a2)
+	move.b	d0,8(a2)				; send low
 	addq.l	#3,a1
 	dbra	d1,.1
 	move.l	a1,dsp_inbuf			; update bufptr
-	move.l	#dsp_iostreamvec,$3fc	; enable ints
-	move.b	#255,DSP_IVR
+	move.l	#dsp_iostreamvec,0x3fc	; enable ints
+	move.b	#0xff,DSP_IVR
 	ori.b	#1,DSP_ICR
 	rte
 
@@ -406,17 +406,17 @@ dsp_iostreamvec:
 	move.l	dsp_obsize,d1
 	move.l	#DSP_RXH,a1
 	subq.l	#1,d1
-.1:	move.b	0(a1),(a0)+
-	move.b	4(a1),(a0)+
-	move.b	8(a1),(a0)+
+.1:	move.b	0(a1),(a0)+				; recv high
+	move.b	4(a1),(a0)+				; recv mid
+	move.b	8(a1),(a0)+				; recv low
 	dbra	d1,.1
 	move.l	a0,dsp_outbuf			; update bufptr
 	move.l	dsp_ibdone,a0			; update done counter
 	addq.l	#1,(a0)
-	move.l	(a0),a0
+	move.l	(a0),d0
 	cmp.l	dsp_ibcount,d0
 	bne.b	.2
-	andi.b	#$fe,DSP_ICR			; disable int and exit
+	andi.b	#0xfe,DSP_ICR			; disable int and exit
 	bra.b	.4
 .2:	move.l	dsp_inbuf,a0			; send block
 	move.l	dsp_ibsize,d1
@@ -424,11 +424,11 @@ dsp_iostreamvec:
 	subq.l	#1,d1
 .3:	move.l	(a0),d0
 	rol.l	#8,d0
-	move.b	d0,0(a1)
+	move.b	d0,0(a1)				; send high
 	rol.l	#8,d0
-	move.b	d0,4(a1)
+	move.b	d0,4(a1)				; send mid
 	rol.l	#8,d0
-	move.b	d0,8(a1)
+	move.b	d0,8(a1)				; send low
 	addq.l	#3,a0
 	dbra	d1,.3
 	move.l	a0,dsp_inbuf			; update bufptr
@@ -453,14 +453,13 @@ xb_dsp_getwordsize:
 ;----------------------------------------------------------
 ;		0x0068	i16  Dsp_Lock(void)
 xb_dsp_lock:
-	or.w	#0x0700,sr
 	move.w	dsp_locked,d0
 	bne.b	.1
 	move.w	#0xffff,dsp_locked
 .1:	rte
 
 ;----------------------------------------------------------
-;		0x0069	i16  Dsp_Unlock(void)
+;		0x0069	void  Dsp_Unlock(void)
 xb_dsp_unlock:
 	or.w	#0x0700,sr
 	move.w	#0,dsp_locked
@@ -495,7 +494,10 @@ xb_dsp_loadprog:
 	move.w	4(a0),d1	; ability
 	move.l	6(a0),a0	; code
 	bsr.w	dsp_execprog
-.1:	rte
+	moveq.l	#0,d0
+	rte
+.1:	move.l	#-1,d0
+	rte
 
 ;----------------------------------------------------------		## todo
 ;		0x006D  void Dsp_ExecProg(i8* code, i32 codesize, i16 ability)
@@ -738,13 +740,15 @@ xb_dsp_blkwords:
 	beq.b	.3
 	subq.l	#1,d1
 	move.l	#DSP_TXH,a2		; a2 = DSP_TXH
-	move.b	#0,(a2)
 .1:	btst	#1,DSP_ISR		; wait for dsp recv ready
 	beq.b	.1
 .2:	move.w	(a1)+,d0
-	rol.w	#8,d0
+	ext.l	d0				; sign extend word->long
+	swap	d0				; send full 24bit dsp word
+	move.b	d0,0(a2)
+	rol.l	#8,d0
 	move.b	d0,4(a2)
-	rol.w	#8,d0
+	rol.l	#8,d0
 	move.b	d0,8(a2)
 	dbra	d1,.2
 .3:	move.l	(a0)+,a1		; a1 = output buffer
@@ -754,7 +758,7 @@ xb_dsp_blkwords:
 	move.l	#DSP_RXH,a2
 .4:	btst	#0,DSP_ISR		; wait for dsp send ready
 	beq.b	.4
-.5:	move.b	4(a2),d0
+.5:	move.b	4(a2),d0		; recv low 16bits
 	lsl.w	#8,d0
 	move.b	8(a2),d0
 	move.w	d0,(a1)+
@@ -770,11 +774,11 @@ xb_dsp_blkbytes:
 	move.l	#DSP_TXH,a2		; a2 = DSP_TXH
 	moveq.l	#0,d0			; d0 = zero
 	subq.l	#1,d1
-	move.b	d0,0(a2)
+	move.b	d0,0(a2)		; clear upper 16bits of dsp word
 	move.b	d0,4(a2)
 .1:	btst	#1,DSP_ISR		; wait for dsp recv ready
 	beq.b	.1
-.2:	move.b	(a1)+,8(a2)
+.2:	move.b	(a1)+,8(a2)		; send the low 8bits
 	dbra	d1,.2
 .3:	move.l	(a0)+,a1		; a1 = output buffer
 	move.l	(a0),d1			; d1 = output size
@@ -783,7 +787,7 @@ xb_dsp_blkbytes:
 	move.l	#DSP_RXL,a2		; a2 = DSP_RXL
 .4:	btst	#0,DSP_ISR		; wait for dsp send ready
 	beq.b	.4
-.5:	move.b	(a2),(a1)+
+.5:	move.b	(a2),(a1)+		; recv low 8bits 
 	dbra	d1,.5
 .6:	rte
 
@@ -802,13 +806,13 @@ xb_dsp_setvectors:
 	move.l	(a0)+,d0				; d0 = recv fun
 	beq.b	.1
 	move.l	d0,dsp_recvfun
-	move.l	#dsp_hreqvec,$3fc		; vec 255 function
-	move.b	#255,DSP_IVR			; set vec 255 on dsp
+	move.l	#dsp_hreqvec,0x3fc		; vec 255 function
+	move.b	#0xff,DSP_IVR			; set vec 255 on dsp
 	ori.b	#1,DSP_ICR				; rxdf request enable
 .1:	move.l	(a0),d0					; d0 = send fun
 	beq.b	.2
-	move.l	#dsp_hreqvec,$3fc		; vec 255 function
-	move.b	#255,DSP_IVR			; set vec 255 on dsp
+	move.l	#dsp_hreqvec,0x3fc		; vec 255 function
+	move.b	#0xff,DSP_IVR			; set vec 255 on dsp
 	ori.b	#2,DSP_ICR				; txde request enable
 .2:	rte
 
@@ -845,10 +849,97 @@ dsp_hreqvec:
 .2:	movem.l	(sp)+,d0-d2/a0-a2
 	rte
 
-
 ;----------------------------------------------------------		## todo
 ;		0x007F	void Dsp_MultBlocks(i32 numsend, i32 numrecv, DSPBLOCK* sendblocks, DSPBLOCK* recvblocks)
 xb_dsp_multblocks:
+	movem.l	d2-d3/a2-a3,-(sp)
+	move.l	(a0),d2			; d2 = block count
+	beq.w	xb_dsp_multblocks_recv
+	move.l	8(a0),a2		; a2 = block info
+	subq.l	#1,d2
+.1:	btst	#1,DSP_ISR		; wait dsp ready
+	beq.b	.1
+.2:	move.w	(a2)+,d2		; d2 = block type
+	move.l	(a2)+,d1		; d1 = block size
+	move.l	(a2)+,a1		; a1 = block data
+	move.l	#DSP_TXH,a3		; a3 = dsp port
+	subq.l	#1,d1
+	cmp.w	#0,d2
+	beq.b	.3				; longs
+	cmp.w	#1,d2
+	beq.b	.4				; words
+	cmp.w	#2,d2
+	beq.b	.5				; chars
+	bra.w	xb_dsp_multblocks_done
+.3:	move.l	(a1)+,d0		; long
+	swap	d0
+	move.b	d0,0(a3)		; send high
+	rol.l	#8,d0
+	move.b	d0,4(a3)		; send mid
+	rol.l	#8,d0
+	move.b	d0,8(a3)		; send low
+	dbra	d1,.3			; next data
+	dbra	d2,.2			; next block
+	bra.b	xb_dsp_multblocks_recv
+.4:	move.w	(a1)+,d0		; short
+	ext.l	d0
+	swap	d0
+	move.b	d0,0(a3)		; send high
+	rol.l	#8,d0
+	move.b	d0,4(a3)		; send mid
+	rol.l	#8,d0
+	move.b	d0,8(a3)		; send low
+	dbra	d1,.4			; next data
+	dbra	d2,.2			; next block
+	bra.b	xb_dsp_multblocks_recv
+.5:	move.b	#0,0(a3)		; send high
+	move.b	#0,4(a3)		; send mid
+.6:	move.b	(a1)+,8(a3)		; send low
+	dbra	d1,.6			; next data
+	dbra	d2,.2			; next block
+
+xb_dsp_multblocks_recv:
+	move.l	4(a0),d2		; d2 = block count
+	beq.b	xb_dsp_multblocks_done
+	move.l	12(a0),a2		; a2 = block info
+	subq.l	#1,d2
+.1:	btst	#0,DSP_ISR		; wait dsp ready
+	beq.b	.1
+.2:	move.w	(a2)+,d2		; d2 = block type
+	move.l	(a2)+,d1		; d1 = block size
+	move.l	(a2)+,a1		; a1 = block data
+	move.l	#DSP_RXH,a3		; a3 = dsp port
+	subq.l	#1,d1
+	cmp.w	#0,d2
+	beq.b	.3				; longs
+	cmp.w	#1,d2
+	beq.b	.4				; words
+	cmp.w	#2,d2
+	beq.b	.5				; chars
+	bra.b	xb_dsp_multblocks_done
+.3:	moveq.l	#0,d0
+	move.b	0(a3),d0		; recv high
+	rol.l	#8,d0
+	move.b	4(a3),d0		; recv mid
+	rol.l	#8,d0
+	move.b	8(a3),d0		; recv low
+	move.l	d0,(a1)+
+	dbra	d1,.3			; next data
+	dbra	d2,.2			; next block
+	bra.b	xb_dsp_multblocks_done
+.4:	move.b	4(a3),d0		; recv mid
+	rol.w	#8,d0
+	move.b	8(a3),d0		; recv low
+	move.w	d0,(a1)+
+	dbra	d1,.4			; next data
+	dbra	d2,.2			; next block
+	bra.b	xb_dsp_multblocks_done
+.5:	move.b	8(a3),(a1)+		; recv low
+	dbra	d1,.5			; next data
+	dbra	d2,.2			; next block
+
+xb_dsp_multblocks_done:
+	movem.l	(sp)+,d2-d3/a2-a3
 	rte
 
 
