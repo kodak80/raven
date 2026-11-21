@@ -1,0 +1,4 @@
+# Atari build outputs
+*.prg
+*.prg.map
+*.bak

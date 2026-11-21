@@ -25,7 +25,7 @@ typedef enum {
 
 typedef enum { PICO_BASED = 0, PICOGUS_2 = 1 } board_type_t;
 
-typedef enum {
+/* typedef enum {
     INVALID_MODE = 0,
     GUS_MODE     = 1,
     ADLIB_MODE   = 2,
@@ -46,6 +46,7 @@ static const char *modenames[8] = {
     "USB",
     "NE2000"
 };
+*/
 
 #define CMD_MAGIC      0x00 // Magic string
 #define CMD_PROTOCOL   0x01 // Protocol version

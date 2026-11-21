@@ -15,19 +15,43 @@
  *  with this program; if not, write to the Free Software Foundation, Inc.,
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
-#include <io.h>
-#include <conio.h>
-#include <dos.h>
+
+#ifdef __ATARI__
+
+// moved section below from picogus.h as this was not working
+// ---------------------------------------------------------------
+
+typedef enum { INVALID_MODE = 0, GUS_MODE = 1, ADLIB_MODE = 2, MPU_MODE = 3, PSG_MODE = 4, SB_MODE = 5, USB_MODE = 6, NE2000_MODE = 7 } card_mode_t;
+
+static const char *modenames[8] = { "INVALID", "GUS", "ADLIB", "MPU", "PSG", "SB", "USB", "NE2000" };
+// ---------------------------------------------------------------
+#endif
+
+//ATARI GCC Build Added
+#ifdef __ATARI__
+    #include <ext.h>
+    #include <mint/cookie.h>
+    #include <mint/osbind.h>
+    #include "../../../isa.h"
+#else
+    #include <io.h>
+    #include <conio.h>
+    #include <dos.h> 
+    #include <i86.h>
+#endif
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <i86.h>
 #include <ctype.h>
 #include <string.h>
 #include "pgusinit.h"
+
+#include "../common/picogus.h"
+
 
 static card_mode_t gMode;
 static card_mode_t newMode = 0;
@@ -38,19 +62,30 @@ static bool resources_from_env = false;
 static bool is_console;
 static uint8_t page_lines;
 
-#include "../common/picogus.h"
 
-
-const uint8_t get_screen_lines(void)
-{
-    uint16_t bios_screensize = *(uint16_t far *)MK_FP(0x40, 0x4c);
-    uint8_t bios_screencols = *(uint8_t far *)MK_FP(0x40, 0x4a);
-
-    if (bios_screensize && bios_screencols) {
-        return bios_screensize / bios_screencols / 2;
+// REMOVED FOR ATARI BUILD
+//ATARI GCC Build Added
+#ifdef __ATARI__
+    uint8_t get_screen_lines(void) {
+        long *vdo;
+        if (Getcookie(C__VDO, (long *)&vdo) == C_FOUND && vdo) {
+            return (uint8_t)vdo[3];  // vdo[3] = screen height in lines
+        }
+        return 25;  // Fallback
     }
-    return 25;
-}
+#else
+
+   const uint8_t get_screen_lines(void)
+   {
+       uint16_t bios_screensize = *(uint16_t far *)MK_FP(0x40, 0x4c);
+       uint8_t bios_screencols = *(uint8_t far *)MK_FP(0x40, 0x4a);
+
+       if (bios_screensize && bios_screencols) {
+           return bios_screensize / bios_screencols / 2;
+       }
+       return 25;
+   }
+#endif
 
 static void pageprintf(char *format, ...)
 {
@@ -62,8 +97,8 @@ static void pageprintf(char *format, ...)
     va_end(arglist);
     printed_lines++;
     if (is_console && (printed_lines >= page_lines)) {
-        fprintf(stderr, "Press any key to continue...");
-        getch();
+        // fprintf(stderr, "Press any key to continue...");
+        // getch();
         putchar('\r');
         printed_lines = 0;
     }
@@ -71,7 +106,7 @@ static void pageprintf(char *format, ...)
 
 static void banner(void)
 {
-    printf("PicoGUSinit v3.9.0 (c) 2025 Ian Scott - licensed under the GNU GPL v2\n");
+    printf("PicoGUSinit v3.9.0d Raven060 (c) 2026 Ian Scott - licensed under the GNU GPL v2\n");
 }
 
 
@@ -96,7 +131,8 @@ static void usage(card_mode_t mode, bool print_all)
     if (mode == GUS_MODE || print_all) {
         //         "...............................................................................\n"
         pageprintf("GUS settings:\n");
-        pageprintf("   /gusenv     - set the base port of the GUS from ULTRASND variable\n");
+   #ifdef __ATARI__
+        // Atari build: no ULTRASND variable, no /gusenv
         pageprintf("   /gusport x  - set the base port of the GUS. Default: 240\n");
         pageprintf("   /gusbuf n   - set audio buffer to n samples. Default: 4, Min: 1, Max: 256\n");
         pageprintf("                 (tweaking can help programs that hang or have audio glitches)\n");
@@ -105,22 +141,48 @@ static void usage(card_mode_t mode, bool print_all)
         pageprintf("                 (increase to fix games with streaming audio like Doom)\n");
         pageprintf("   /gus44k 1|0 - Fixed 44.1kHz output for all active voice #s [EXPERIMENTAL]\n");
         pageprintf("   /gusvol x   - set the GUS audio volume: 0 - 100\n");
-    }
+        pageprintf("   (Note: Atari build does not use SET ULTRASND= or /gusenv)\n");
+	#else
+        // DOS build: ULTRASND variable supported
+     	pageprintf("   /gusenv     - set the base port of the GUS from ULTRASND variable\n");
+        pageprintf("   /gusport x  - set the base port of the GUS. Default: 240\n");
+        pageprintf("   /gusbuf n   - set audio buffer to n samples. Default: 4, Min: 1, Max: 256\n");
+        pageprintf("                 (tweaking can help programs that hang or have audio glitches)\n");
+        pageprintf("   /gusdma n   - force DMA interval to n us. Default: 0, Min: 0, Max: 255\n");
+        pageprintf("                 Specifying 0 restores the GUS default behavior.\n");
+        pageprintf("                 (increase to fix games with streaming audio like Doom)\n");
+        pageprintf("   /gus44k 1|0 - Fixed 44.1kHz output for all active voice #s [EXPERIMENTAL]\n");
+        pageprintf("   /gusvol x   - set the GUS audio volume: 0 - 100\n");
+    #endif  
+  }
     if (mode == SB_MODE || print_all) {
-        //         "...............................................................................\n"
         pageprintf("Sound Blaster settings:\n");
-        pageprintf("   /sbenv         - set the SB base port, IRQ, DMA and type from SET BLASTER=\n");
+
+    #ifdef __ATARI__
+        // Atari build: no BLASTER variable, no /sbenv
+        pageprintf("   /sbport x      - set the SB base port. Default: 220\n");
+        pageprintf("   /sbirq x       - set the SB IRQ. Default: 5\n");
+        pageprintf("   /sbdma x       - set the SB DMA. Default: 1\n");
+        pageprintf("   /sbtype x      - set the Sound Blaster type. Default: 6 (SB 16)\n");
+        pageprintf("          1 - SB 1.x,          2 - SB Pro 1 (dual OPL2), 3 - SB 2.0,\n");
+        pageprintf("          4 - SB Pro 2 (OPL3), 6 - SB 16\n");
+        pageprintf("   (Note: Atari build does not use SET BLASTER= or /sbenv)\n");
+    #else
+        // DOS build: BLASTER variable supported
+        pageprintf("   /sbenv         - set SB port/IRQ/DMA/type from SET BLASTER=\n");
         pageprintf("   /sbport x      - set the SB base port. Default: 220\n");
         pageprintf("   /sbirq x       - set the SB IRQ (must match jumper settings!). Default: 5\n");
         pageprintf("   /sbdma x       - set the SB DMA (must match jumper settings!). Default: 1\n");
         pageprintf("   /sbtype x      - set the Sound Blaster type. Default: 6 (SB 16)\n");
         pageprintf("          1 - SB 1.x,          2 - SB Pro 1 (dual OPL2), 3 - SB 2.0,\n");
         pageprintf("          4 - SB Pro 2 (OPL3), 6 - SB 16\n");
-        pageprintf("   /sbvol x       - set the Sound Blaster audio volume: 0 - 100%\n");
-        pageprintf("   /sbfixtc 1|0   - fix SB time constant to match common rates. Default: 0\n");
-        pageprintf("   /sblockmixer n - lock SB mixer settings. Default: 0 (no lock)\n");
-        pageprintf("          0 - no lock, 1 - lock all but Voice Volume, 2 - lock all\n");
-    }
+    #endif
+
+    pageprintf("   /sbvol x       - set the Sound Blaster audio volume: 0 - 100%%\n");
+    pageprintf("   /sbfixtc 1|0   - fix SB time constant to match common rates. Default: 0\n");
+    pageprintf("   /sblockmixer n - lock SB mixer settings. Default: 0 (no lock)\n");
+    pageprintf("          0 - no lock, 1 - lock all but Voice Volume, 2 - lock all\n");
+}
     if (mode == SB_MODE || mode == ADLIB_MODE || print_all) {
         pageprintf("AdLib settings:\n");
         pageprintf("   /oplport x   - set the base port of the OPL2. Default: 388, 0 to disable\n");
@@ -156,12 +218,12 @@ static void usage(card_mode_t mode, bool print_all)
     }
     if (mode == NE2000_MODE) { // NE2000 mode is special enough it should only be shown if the card is running the dedicated pg-ne2k firmware
         //         "...............................................................................\n"
-        pageprintf("NE2000/WiFi settings:\n");
-        pageprintf("   /ne2kport x   - set the base port of the NE2000. Default: 300\n");
-        pageprintf("   /wifissid abc - set the WiFi SSID to abc\n");
-        pageprintf("   /wifipass xyz - set the WiFi WPA/WPA2 password/key to xyz\n");
-        pageprintf("   /wifinopass   - unset the WiFi password to connect to an open access point\n");
-        pageprintf("   /wifistatus   - print current WiFi status\n");
+//        pageprintf("NE2000/WiFi settings:\n");
+//        pageprintf("   /ne2kport x   - set the base port of the NE2000. Default: 300\n");
+//        pageprintf("   /wifissid abc - set the WiFi SSID to abc\n");
+//        pageprintf("   /wifipass xyz - set the WiFi WPA/WPA2 password/key to xyz\n");
+//        pageprintf("   /wifinopass   - unset the WiFi password to connect to an open access point\n");
+//        pageprintf("   /wifistatus   - print current WiFi status\n");
     }
 }
 
@@ -173,13 +235,18 @@ static const char* mouse_protocol_str[] = {
 
 static void err_ultrasnd(void)
 {
-    //              "................................................................................\n"
+#ifdef __ATARI__
+    fprintf(stderr, "ERROR: Invalid GUS configuration.\n");
+    fprintf(stderr, "Use /gusport to set the GUS base port.\n");
+#else
     fprintf(stderr, "ERROR: In GUS mode but no ULTRASND variable set or is malformed!\n");
     fprintf(stderr, "The ULTRASND environment variable must be set in the following format:\n");
     fprintf(stderr, "\tset ULTRASND=xxx,y,n,z,n\n");
     fprintf(stderr, "Where xxx = port, y = DMA, z = IRQ. n is ignored.\n");
     fprintf(stderr, "Port is set via /gusport xxx option; DMA and IRQ configued via jumper.\n");
+#endif
 }
+
 
 
 typedef enum {
@@ -189,19 +256,24 @@ typedef enum {
     BLASTER_MISMATCH,
 } blaster_err_t;
 
+#ifndef __ATARI__
 static void err_blaster_format_help(void)
 {
-    //              "................................................................................\n"
     fprintf(stderr, "The BLASTER environment variable must be set in the following format:\n");
     fprintf(stderr, "\tset BLASTER=Axxx Iy Dz Hz Tw\n");
     fprintf(stderr, "Where xxx = port, y = IRQ, z = DMA. w = SB type:\n");
     fprintf(stderr, "    1 - SB 1.x,          2 - SB Pro 1 (dual OPL2), 3 - SB 2.0,\n");
     fprintf(stderr, "    4 - SB Pro 2 (OPL3), 6 - SB 16\n");
 }
+#endif
 
 static void err_blaster(blaster_err_t reason)
 {
-    //                      "................................................................................\n"
+#ifdef __ATARI__
+    fprintf(stderr, "ERROR: Invalid SB configuration.\n");
+    fprintf(stderr, "Use /sbport, /sbirq, /sbdma, /sbtype to configure Sound Blaster mode.\n");
+    return;
+#else
     switch (reason) {
         case BLASTER_UNSET:
             fprintf(stderr, "ERROR: In SB mode but BLASTER environment variable is not set!\n");
@@ -224,6 +296,7 @@ static void err_blaster(blaster_err_t reason)
             fprintf(stderr, "Alternatively, use /sbport, /sbirq, /sbdma, /sbtype to set values directly.\n");
             break;
     }
+#endif
 }
 
 static void err_pigus(void)
@@ -242,16 +315,31 @@ static void err_protocol(uint8_t expected, uint8_t got)
 
 static int init_gus(void)
 {
+#ifdef __ATARI__
+    //
+    // ATARI BUILD — NO ULTRASND ENVIRONMENT VARIABLE
+    // Read GUS base port directly from PicoGUS registers
+    //
+    outp(CONTROL_PORT, CMD_GUSPORT);
+    uint16_t port = inpw(DATA_PORT_LOW);
+
+    if (port == 0) {
+        fprintf(stderr, "ERROR: Invalid GUS port (0)\n");
+        return 1;
+    }
+
+#else
+    //
+    // ORIGINAL DOS ULTRASND PARSING
+    //
     char* ultrasnd = getenv("ULTRASND");
     if (ultrasnd == NULL) {
         err_ultrasnd();
         return 1;
     }
 
-    // Parse ULTRASND
     uint16_t port;
-    int e;
-    e = sscanf(ultrasnd, "%hx,%*hhu,%*hhu,%*hhu,%*hhu", &port);
+    int e = sscanf(ultrasnd, "%hx,%*hhu,%*hhu,%*hhu,%*hhu", &port);
     if (e != 1) {
         err_ultrasnd();
         return 2;
@@ -259,41 +347,52 @@ static int init_gus(void)
 
     if (resources_from_env) {
         // init GUS base port from ULTRASND environment variable
-        outp(CONTROL_PORT, CMD_GUSPORT); // Select port register
+        outp(CONTROL_PORT, CMD_GUSPORT);
         outpw(DATA_PORT_LOW, port);
     } else {
         // verify ULTRASND against GUS mode settings
-        outp(CONTROL_PORT, CMD_GUSPORT); // Select port register
+        outp(CONTROL_PORT, CMD_GUSPORT);
         uint16_t tmp_port = inpw(DATA_PORT_LOW);
         if (port != tmp_port) {
             err_ultrasnd();
             return 2;
         }
     }
+#endif
+
+    //
+    // COMMON CODE — applies to both Atari and DOS
+    //
 
     // Detect if there's something GUS-like...
-    // Set memory address to 0
     outp(port + 0x103, 0x43);
     outpw(port + 0x104, 0x0);
     outp(port + 0x103, 0x44);
     outpw(port + 0x104, 0x0);
-    // Write something
+
+    // Write test byte
     outp(port + 0x107, 0xDD);
-    // Read it and see if it's the same
+
+    // Read it back
     if (inp(port + 0x107) != 0xDD) {
         fprintf(stderr, "ERROR: Card not responding to GUS commands on port %x\n", port);
         return 98;
     }
+
     printf("GUS-like card detected on port %x...\n", port);
 
     // Enable IRQ latches
     outp(port, 0x8);
+
     // Select reset register
     outp(port + 0x103, 0x4C);
-    // Master reset to run. DAC enable and IRQ enable will be done by the application.
+
+    // Master reset to run
     outp(port + 0x105, 0x1);
+
     return 0;
 }
+
 
 
 static int init_sb(void)
@@ -301,17 +400,49 @@ static int init_sb(void)
     // SB DSP version table
     const uint16_t dspver[] = {0, 0x105, 0x300, 0x201, 0x301, 0, 0x405};
 
+#ifdef __ATARI__
+    //
+    // ATARI BUILD — NO BLASTER ENVIRONMENT VARIABLE
+    // Read SB settings directly from the PicoGUS registers
+    //
+    outp(CONTROL_PORT, CMD_SBPORT);
+    uint16_t port = inpw(DATA_PORT_LOW);
+
+    outp(CONTROL_PORT, CMD_SBIRQ);
+    uint8_t irq = inp(DATA_PORT_HIGH);
+
+    outp(CONTROL_PORT, CMD_SBDMA);
+    uint8_t dma8 = inp(DATA_PORT_HIGH);
+
+    outp(CONTROL_PORT, CMD_SBTYPE);
+    uint8_t sbtype = inp(DATA_PORT_HIGH);
+
+    // No DMA16 on Atari — SB16 requires dma8 == dma16, so enforce it
+    uint8_t dma16 = dma8;
+
+    // Validate SB type
+    if (sbtype > 6 || dspver[sbtype] == 0) {
+        fprintf(stderr, "ERROR: Invalid SB type %u\n", sbtype);
+        return 2;
+    }
+
+#else
+    //
+    // ORIGINAL DOS BLASTER PARSING
+    //
     char* blaster = getenv("BLASTER");
     if (blaster == NULL) {
         err_blaster(BLASTER_UNSET);
         return 1;
     }
+
     char blasterTemp[256];
     strncpy(blasterTemp, blaster, sizeof(blasterTemp));
 
     // Parse BLASTER
     char* p = strtok(blasterTemp, " ");
-    uint16_t port = -1, irq  = -1, dma8 = -1, dma16 = -1, sbtype = 0;
+    uint16_t port = -1, irq = -1, dma8 = -1, dma16 = -1, sbtype = 0;
+
     while (p != NULL) {
         switch (*p) {
             case 'a': case 'A': port   = strtol(p + 1, NULL, 16); break;
@@ -332,44 +463,48 @@ static int init_sb(void)
         err_blaster(BLASTER_DMA16_MISMATCH);
         return 2;
     }
+#endif
 
+    //
+    // COMMON CODE — applies to both Atari and DOS
+    //
     if (resources_from_env) {
-        // update resources from BLASTER environment variable
-        outp(CONTROL_PORT, CMD_SBPORT); // Select port register
+        // update resources
+        outp(CONTROL_PORT, CMD_SBPORT);
         outpw(DATA_PORT_LOW, port);
 
-        outp(CONTROL_PORT, CMD_SBIRQ); // Select IRQ register
+        outp(CONTROL_PORT, CMD_SBIRQ);
         outp(DATA_PORT_HIGH, irq);
 
-        outp(CONTROL_PORT, CMD_SBDMA); // Select DMA register
+        outp(CONTROL_PORT, CMD_SBDMA);
         outp(DATA_PORT_HIGH, dma8);
 
-        outp(CONTROL_PORT, CMD_SBTYPE); // Select SB type register
+        outp(CONTROL_PORT, CMD_SBTYPE);
         outp(DATA_PORT_HIGH, sbtype);
     } else {
-        // verify BLASTER variable against current SB mode settings
-        outp(CONTROL_PORT, CMD_SBPORT); // Select port register
+        // verify current card settings
+        outp(CONTROL_PORT, CMD_SBPORT);
         uint16_t tmp_port = inpw(DATA_PORT_LOW);
         if (port != tmp_port) {
             err_blaster(BLASTER_MISMATCH);
             return 2;
         }
 
-        outp(CONTROL_PORT, CMD_SBIRQ); // Select IRQ register
+        outp(CONTROL_PORT, CMD_SBIRQ);
         uint8_t tmp_irq = inp(DATA_PORT_HIGH);
         if (irq != tmp_irq) {
             err_blaster(BLASTER_MISMATCH);
             return 2;
         }
 
-        outp(CONTROL_PORT, CMD_SBDMA); // Select DMA register
+        outp(CONTROL_PORT, CMD_SBDMA);
         uint8_t tmp_dma = inp(DATA_PORT_HIGH);
         if (dma8 != tmp_dma) {
             err_blaster(BLASTER_MISMATCH);
             return 2;
         }
 
-        outp(CONTROL_PORT, CMD_SBTYPE); // Select SB type register
+        outp(CONTROL_PORT, CMD_SBTYPE);
         uint8_t tmp_type = inp(DATA_PORT_HIGH);
         if (sbtype != tmp_type) {
             err_blaster(BLASTER_MISMATCH);
@@ -379,7 +514,6 @@ static int init_sb(void)
 
     return 0;
 }
-
 
 static void print_string(uint8_t cmd)
 {
@@ -632,13 +766,20 @@ static int write_firmware(const char* fw_filename)
             return 11;
         }
 
-        if (uf2_buf.uf2.magicStart0 != 0x0A324655 || uf2_buf.uf2.magicStart1 != 0x9E5D5157 || uf2_buf.uf2.magicEnd != 0x0AB16F30) {
+        uint32_t swap32(uint32_t val) {
+            return ((val >> 24) & 0xFF) |
+                   ((val >> 8) & 0xFF00) |
+                   ((val << 8) & 0xFF0000) |
+                   ((val << 24) & 0xFF000000);
+        }
+
+        if (swap32(uf2_buf.uf2.magicStart0) != 0x0A324655 || swap32(uf2_buf.uf2.magicStart1) != 0x9E5D5157 || swap32(uf2_buf.uf2.magicEnd)    != 0x0AB16F30) {
             fprintf(stderr, "ERROR: file %s is not a valid UF2 file - bad magic\n", fw_filename);
             return 12;
         }
 
         if (i == 0) {
-            numBlocks = uf2_buf.uf2.numBlocks;
+            numBlocks = swap32(uf2_buf.uf2.numBlocks);
 
             // Put card into programming mode
             outp(CONTROL_PORT, 0xCC); // Knock on the door...
@@ -653,30 +794,56 @@ static int write_firmware(const char* fw_filename)
             fprintf(stderr, "Preparing to program %d blocks...", numBlocks);
         }
 
-        if (i != uf2_buf.uf2.blockNo) {
+        if (i != swap32(uf2_buf.uf2.blockNo)) {
             fprintf(stderr, "\nERROR: file %s is not a valid UF2 file - block mismatch\n", fw_filename);
             return 14;
         }
 
-        for (uint16_t b = 0; b < 512; ++b) {
-            // Write firmware byte
-            outp(DATA_PORT_HIGH, uf2_buf.buf[b]);
-            if (b == 511 && protocol == 1) {
-                // Protocol 1 abuses IOCHRDY to pause during flash erase/write. Some chipsets give
-                // up waiting on IOCHRDY and release the ISA bus after a certain amount of time before
-                // the flash operation is finished. This is an extra delay to work around this issue.
-                if (i == 0) { // first block takes longer due to flash erase
-                    delay(5000);
-                } else {
-                    delay(25);
-                }
+        // --- Optimized burst write: send bytes in chunks instead of per-byte wait ---
+        // Tune this value for your hardware. 16 or 32 are conservative; increase if stable.
+        #ifndef FIRMWARE_BURST_SIZE
+        #define FIRMWARE_BURST_SIZE 32
+        #endif
+
+        const size_t block_size = 512;
+        size_t offset = 0;
+
+        while (offset < block_size) {
+            size_t remaining = block_size - offset;
+            size_t chunk = remaining < FIRMWARE_BURST_SIZE ? remaining : FIRMWARE_BURST_SIZE;
+
+            // Wait until device is ready to receive the next byte(s).
+            // This replaces waiting after every byte; we wait once per chunk.
+            if (!wait_for_read(PICO_FIRMWARE_WRITING)) {
+                fprintf(stderr, "\nERROR: Card is not in firmware writing mode?\n");
+                return 15;
             }
-            if (i < (numBlocks - 1) || b < 511) { // If it's not the very last byte
-                if (!wait_for_read(PICO_FIRMWARE_WRITING)) {
-                    fprintf(stderr, "\nERROR: Card is not in firmware writing mode?\n");
-                    return 15;
-                }
-            } else if (protocol > 1) {
+
+            // Send chunk
+            for (size_t k = 0; k < chunk; ++k) {
+                outp(DATA_PORT_HIGH, uf2_buf.buf[offset + k]);
+            }
+
+            offset += chunk;
+
+            // Special-case handling for protocol 1: first-block last-byte is slow (flash erase)
+            // If we just wrote the very last byte of a block and protocol==1, keep the extra delay logic:
+            if (protocol == 1 && i == 0 && offset == block_size) {
+                // Give a bit more time to work around chipsets that release the ISA bus early.
+                delay(5000);
+            }
+        }
+
+        // After finishing a block:
+        if (i < (numBlocks - 1)) {
+            // For protocol <=1, device will expect to be in WRITING for the next block too; ensure it is
+            if (!wait_for_read(PICO_FIRMWARE_WRITING)) {
+                fprintf(stderr, "\nERROR: Card is not in firmware writing mode after block?\n");
+                return 15;
+            }
+        } else {
+            // Last block: if protocol > 1 wait for DONE; otherwise rely on existing behaviour
+            if (protocol > 1) {
                 if (!wait_for_read(PICO_FIRMWARE_DONE)) {
                     fprintf(stderr, "\nERROR: Card has written last firmware byte but is not done\n");
                     return 15;
@@ -685,8 +852,9 @@ static int write_firmware(const char* fw_filename)
                 outp(CONTROL_PORT, CMD_FLASH); // Select firmware programming mode, which will reboot the card in DONE
             }
         }
+
         print_progress_bar(i + 1, numBlocks);
-        //fprintf(stderr, "%u ", i);
+        // end block loop
     }
     fclose(fp);
 
@@ -702,28 +870,35 @@ static int write_firmware(const char* fw_filename)
 }
 
 
+#ifdef __ATARI__
 static void wifi_printStatus(void)
-{
-    outp(CONTROL_PORT, 0xCC); // Knock on the door...
-    outp(CONTROL_PORT, CMD_WIFISTAT); // Select WiFi status command
-    outp(DATA_PORT_HIGH, 0); // Write to start getting the status
+  {
+    printf("WiFi status not supported on Raven060 build.\n");
+  }
+#else
+static void wifi_printStatus(void)
+  {
+       outp(CONTROL_PORT, 0xCC); // Knock on the door...
+       outp(CONTROL_PORT, CMD_WIFISTAT); // Select WiFi status command
+       outp(DATA_PORT_HIGH, 0); // Write to start getting the status
    
-    printf("WiFi status: ");
-    uint16_t try = 0;
-    char c;
-    while (c = inp(DATA_PORT_HIGH)) {
-        if ((unsigned char)c == 255) {
-            if (++try == 10000) {
-                printf("Error getting WiFI status\n");
-                break;
-            } else {
-                continue;
-            }
-        }
-        putchar(c);
-    }
-    putchar('\n');
-}
+       printf("WiFi status: ");
+       uint16_t try = 0;
+       char c;
+       while (c = inp(DATA_PORT_HIGH)) {
+           if ((unsigned char)c == 255) {
+               if (++try == 10000) {
+                   printf("Error getting WiFI status\n");
+                   break;
+               } else {
+                   continue;
+               }
+           }
+           putchar(c);
+       }
+       putchar('\n');
+   }
+#endif
 
 static void send_string(const uint8_t cmd, const char* str, const int16_t max_len)
 {
@@ -739,7 +914,8 @@ static void send_string(const uint8_t cmd, const char* str, const int16_t max_le
     outp(DATA_PORT_HIGH, 0);
 }
 
-static bool cmdSetResourcesFromEnv(const char* arg, const int cmd, const int cmd2, const int cmd3) {
+static bool cmdSetResourcesFromEnv(const char* arg, const int cmd, const int cmd2, const int cmd3) 
+{
     resources_from_env = true;
     return true;
 }
@@ -944,6 +1120,8 @@ static bool cmdSendSBLockMixer(const char* arg, const int cmd, const int cmd2, c
 {
     return ctrlSendUint8Masked(arg, cmd, 0, 2, (2 << 1), 1);
 }
+#ifdef __ATARI__
+#else
 
 static bool cmdWifiStatus(const char* arg, const int cmd, const int cmd2, const int cmd3)
 {
@@ -971,6 +1149,7 @@ static bool cmdWifiNoPass(const char* arg, const int cmd, const int cmd2, const 
     send_string(cmd, "", 1);
     return true;
 }
+#endif
 
 static bool cmdCDLoadName(const char* arg, const int cmd, const int cmd2, const int cmd3)
 {
@@ -1064,10 +1243,13 @@ ParseCommand parseCommands[] = {
     {"/mouseproto", cmdSendMouseProto, CMD_MOUSEPROTO, ARG_REQUIRE, "0"},
     {"/mouserate", cmdSendMouseRate, CMD_MOUSERATE, ARG_REQUIRE, "60"},
     {"/ne2kport", cmdSendPort, CMD_NE2KPORT, ARG_REQUIRE, "300"},
+    #ifdef __ATARI__
+    #else
     {"/wifistatus", cmdWifiStatus, 0, ARG_NONE},
     {"/wifissid", cmdWifiSSID, CMD_WIFISSID, ARG_REQUIRE},
     {"/wifipass", cmdWifiPass, CMD_WIFIPASS, ARG_REQUIRE},
     {"/wifinopass", cmdWifiNoPass, CMD_WIFIPASS, ARG_NONE},
+    #endif
     {"/cdport", cmdSendPort, CMD_CDPORT, ARG_REQUIRE, "250"},
     {"/cdlist", cmdCDList, 0, ARG_NONE},
     {"/cdload", cmdCDLoad, CMD_CDLOAD, ARG_REQUIRE},
@@ -1113,7 +1295,7 @@ int parseCommand(int argc, char* argv[], int* i, ParseCommand commands[])
                 } else {
                     printf("\n");
                 }
-                return retVal;
+                return retVal;  
             }
             arg = argv[++(*i)];
             if (!stricmp(arg, "default")) {
@@ -1208,7 +1390,7 @@ static void printSBMode()
 {
     static char *strMode[] = {"(invalid)", "1.x", "Pro 1", "2.0", "Pro 2", "(invalid)", "16"};
     static char *strLockMixerMode[] = {"unlocked", "locked except Voice Volume", "locked", "(invalid)"};
-    
+ 
     if (init_sb()) {
         return;
     }
@@ -1233,11 +1415,14 @@ static void printSBMode()
     print_cdemu_status();
 }
 
+#ifdef __ATARI__
+#else
 static void printNE2000Mode()
 {
     printf("Running in NE2000 mode on port %x\n", ctrlGetUint16(CMD_NE2KPORT));
     wifi_printStatus();
 }
+#endif
 
 static void printMultiMode()
 {
@@ -1406,9 +1591,12 @@ int main(int argc, char* argv[]) {
     case SB_MODE:
         printSBMode();
         break;
+    #ifdef __ATARI__
+    #else
     case NE2000_MODE:
         printNE2000Mode();
         break;
+    #endif
     default:
         printf("Running in unknown mode (maybe upgrade pgusinit?)\n");
         break;
