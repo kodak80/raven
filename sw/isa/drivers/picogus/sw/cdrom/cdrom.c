@@ -32,7 +32,10 @@
 #include "cdrom_error_msg.h"
 #include "pico/multicore.h"
 #include "hardware/structs/timer.h"
+#include "hardware/gpio.h"
 #include "audio/volctrl.h"
+
+extern uint LED_PIN;
 
 int32_t cd_audio_volume = (1 << VOLCTRL_FRACT_BITS);
 
@@ -126,15 +129,19 @@ void cdrom_tasks(cdrom_t *dev) {
         cdrom_read_data(dev);
         break;
     case CD_COMMAND_IMAGE_LIST:
+        if (!cdman_ready()) break; // Defer until the USB drive is detected after boot
         cdrom_errorstr_clear();
         dev->image_list = cdman_list_images(&dev->image_count);
         dev->image_command = CD_COMMAND_NONE;
         dev->image_status = dev->image_list ? CD_STATUS_READY : CD_STATUS_ERROR;
         break;
     case CD_COMMAND_IMAGE_LOAD_INDEX:
+        if (!cdman_ready()) break; // Defer until the USB drive is detected after boot
         cdman_load_image_index(dev, dev->image_data);
         break;
-    case CD_COMMAND_IMAGE_LOAD:
+    case CD_COMMAND_IMAGE_LOAD_NAME: // Look up the index after opened
+    case CD_COMMAND_IMAGE_OPEN: // Index already set by LOAD_INDEX or unload
+        if (!cdman_ready()) break; // Defer until the USB drive is detected after boot
         DBG_PRINTF("loading");
         cdrom_errorstr_clear();
         if (dev->disk_loaded) {
@@ -145,14 +152,17 @@ void cdrom_tasks(cdrom_t *dev) {
             cdrom_error(dev, 0x11);   //media changed
         }
         if (dev->image_path[0]) {
-            DBG_PRINTF("Opening %s...",dev->image_path);
-            if (cdrom_image_open(dev,dev->image_path)) {
+            DBG_PRINTF("Opening %s...", dev->image_path);
+            if (cdrom_image_open(dev, dev->image_path) == 0) {
+                if (dev->image_command == CD_COMMAND_IMAGE_LOAD_NAME) {
+                    // If we loaded directly by name, set the index
+                    cdman_set_image_index(dev);
+                }
+            } else {
                 dev->image_command = CD_COMMAND_NONE;
                 dev->image_status = CD_STATUS_ERROR;
                 cdman_clear_image();
                 break;
-            } else {
-                cdman_set_image_index(dev);
             }
             DBG_PRINTF("Done.\n");
             dev->disk_loaded = 1;
@@ -300,6 +310,8 @@ bool cdrom_audio_callback(cdrom_t *dev, uint32_t len) {
                 cdrom_log("CD-ROM %i: Batch read %u sectors at LBA %08X\n", dev->id, sectors_read, dev->seek_pos);
                 dev->seek_pos += sectors_read;
                 dev->audio_staging_sectors = sectors_read;
+                // Toggle LED per CD audio batch read
+                gpio_xor_mask(LED_PIN);
                 dev->audio_staging_index = 0;
                 dev->audio_sector_consumed_pairs = 0;
             } else {
@@ -379,6 +391,8 @@ uint32_t cdrom_audio_callback_simple(cdrom_t *dev, int16_t *buffer, uint32_t len
                 cdrom_log("CD-ROM %i: Batch read %u sectors at LBA %08X\n", dev->id, sectors_read, dev->seek_pos);
                 dev->seek_pos += sectors_read;
                 dev->audio_staging_sectors = sectors_read;
+                // Toggle LED per CD audio batch read
+                gpio_xor_mask(LED_PIN);
                 dev->audio_staging_index = 0;
                 dev->audio_sector_consumed_pairs = 0;
             } else {
@@ -439,6 +453,8 @@ void __inline cdrom_read_data(cdrom_t *dev) {
         // 2048 byte sectors
         dev->ops->read_sector(dev, CD_READ_DATA, dev->data_fifo.data + dev->data_fifo.tail, pos);
         dev->data_fifo.tail = (dev->data_fifo.tail + 2048) & 4095;
+        // Toggle LED per data sector read
+        gpio_xor_mask(LED_PIN);
         dev->req_cur++;
         if(dev->req_cur == dev->req_total) {
             cdrom_output_status(dev);
@@ -640,6 +656,7 @@ cdrom_global_init(void)
     cdrom.error_str = cdrom_errorstr_get();
     cdrom.current_sector_samples = (sample_pair*)cdrom.audio_sector_buffer;
     set_volume(CMD_CDVOL);
+    cdman_init();
 }
 
 static void

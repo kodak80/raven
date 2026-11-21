@@ -10,7 +10,7 @@ The board must be loaded with firmware before using it for the first time. See
 https://github.com/polpo/picogus/wiki/Building-your-PicoGUS#programming-the-pico
 for programming instructions if your card didn't come programmed. The `/flash
 x` option to pgusinit can be used to upgrade firmware on a running PicoGUS.
-Firmware files that comes with release:
+Firmware files that come with the release:
 
 * `picogus.uf2` - All modes are now in a single firmware. To switch between
   modes, use the `/mode x` option in pgusinit.
@@ -21,13 +21,22 @@ pgusinit must be run with firmware it is compatible with. If run with an
 incompatible firmware, pgusinit will complain about a protocol mismatch. One
 exception to this is that pgusinit can be used to upgrade an older version of
 firmware to a more recent version. For example, firmware v1.2.0, which is
-normally incompatibile with pgusinit v3.0.0, can be upgraded to firmware
-v2.0.0 with pgusinit v3.0.0.
+normally incompatible with pgusinit v3.0.0, can be upgraded to firmware
+v2.0.0 with pgusinit v3.0.0. When a protocol mismatch is detected, only the
+`/flash` option is accepted. If no PicoGUS is detected at all, only `/?` and
+`/??` are accepted.
 
 ## Using
 
 Simply run `PGUSINIT.EXE` to detect and initialize your card with default
-settings. Options may be given for other settings:
+settings. Options may be given for other settings.
+
+Options that take a numeric value also accept `default` to restore that
+setting's default (for example, `/gusbuf default`). On/off options accept `1`,
+`true` or `on` to enable and `0`, `false` or `off` to disable.
+
+`/mode` takes effect before any other options, so the other options on the
+same command line apply to the new mode after the card reboots into it.
 
 ### Global options
 
@@ -37,12 +46,13 @@ settings. Options may be given for other settings:
 * `/flash picogus.uf2` - uploads firmware in the file named picogus.uf2 to the
   PicoGUS. Used to upgrade firmware version.
 * `/wtvol x` - sets wavetable header volume to x percent (PicoGUS 2.0 boards
-  only).  Available in all modes in case you want to use the wavetable header
-  as an aux input (for example for an internal CD-ROM drive).
-* `/mainvol x` - sets main volume level for all outputs.
+  only). Default: 100. Available in all modes in case you want to use the
+  wavetable header as an aux input (for example for an internal CD-ROM drive).
+* `/mainvol x` - sets main volume level for all outputs to x percent.
 * `/mode x` - changes the card to mode specified by x. Options:
     - `gus`: Gravis Ultrasound
-    - `sb`: Sound Blaster 2.0 & AdLib. Supports CD-rom emulation.
+    - `sb`: Sound Blaster (1.x, 2.0, Pro, or 16, see `/sbtype`) & AdLib.
+      Supports CD-ROM emulation.
     - `mpu`: MPU-401 with intelligent mode and IRQ support
     - `psg`: Tandy 3-voice and CMS/Game Blaster. Supports USB serial mouse
       emulation.
@@ -51,18 +61,15 @@ settings. Options may be given for other settings:
       used if you don't want to emulate any sound cards. Supports CD-ROM
       emulation.
 * `/save` - saves current settings to the card. Saved settings persist across
-  reboots, meaning pgusinit does not need to be run. The card mode is also
-  saved.
+  reboots, meaning pgusinit does not need to be run unless you're changing
+  options. The card mode is also saved.
 * `/defaults` - restores all card settings to defaults.
-* `/joy 1|0` - enable USB joystick support with 1, disable with 0.
+* `/joy 1|0` - enable USB joystick support with 1, disable with 0. Default: 0
 
 ### GUS options
 
-GUS emulation requires the ULTRASND variable to be set, in the format:
-
-`set ULTRASND=240,1,1,5,5` where 240 is the PicoGUS's port, 1 is the DMA, and
-5 is the IRQ. pgusinit will check that the port set on the PicoGUS matches the
-port specified in ULTRASND.
+On the Raven060 there are no DOS environment variables: pgusinit reads the
+GUS port directly from the card. Use `/gusport` to change it.
 
 * `/gusport x` - sets the base I/O port of the GUS to x. Defaults to 240.
 * `/gusbuf n` - sets the audio buffer size to n samples. Defaults to 4 with a
@@ -72,12 +79,13 @@ port specified in ULTRASND.
   streaming audio over DMA work better with higher values. Doom, for example,
   runs well with a value of 10-12. Note that increasing this will slow sample
   loading. Set to 0 to use the GUS's default DMA interval handling, where the
-  DMA interval is set by the program using it.
+  DMA interval is set by the program using it. Default: 0, Max: 255.
 * `/gus44k 1|0` - setting to 1 enables fixed 44.1kHz output. Normally the GF1
   varies its output sample rate from 44.1kHz at 14 voices to 19.2kHz at 32
   voices. Using this option enables 44.1kHz output for all numbers of voices,
   similar to the Interwave. This will result in stuttering in most games that
   use streaming DMA for sound effects like Doom, hence it is EXPERIMENTAL.
+  Default: 0
 * `/gusvol x` - sets the volume of the GUS output to x percent.
 
 See the Compatibility List wiki for notes on programs that require special
@@ -86,33 +94,57 @@ https://github.com/polpo/picogus/wiki/Compatibility-list
 
 ### Sound Blaster/AdLib options
 
+On the Raven060 there are no DOS environment variables: pgusinit reads the SB
+port, IRQ, DMA and type directly from the card. Use the options below to change
+them. Supported resources are DMA 1 or 3 and IRQ 2/9, 3, 4, 5 or 7.
+
 * `/sbport x` - sets the base port of the Sound Blaster. Defaults to 220.
-* `/oplport x` - sets the base port of the OPL/AdLib. Defaults to 388.
-* `/oplwait` - wait on OPL2 data write. Can fix speed-sensitive early AdLib
+* `/sbirq x` - sets the IRQ of the Sound Blaster. Must match jumper settings.
+  Defaults to 5.
+* `/sbdma x` - sets the DMA of the Sound Blaster. Must match jumper settings.
+  Defaults to 1.
+* `/sbtype x` - sets the Sound Blaster type. Defaults to 6. Allowed values are:
+  1 - SB 1.x,          2 - SB Pro 1 (dual OPL2), 3 - SB 2.0
+  4 - SB Pro 2 (OPL3), 6 - SB 16
+* `/oplport x` - sets the base port of the OPL/AdLib. Defaults to 388, 0 to
+  disable.
+* `/oplwait 1|0` - wait on OPL2 data write. Can fix speed-sensitive early AdLib
   games on fast systems (example: 688 Attack Sub).
+* `/sbvol x` - sets the volume of the SB PCM output to x percent.
 * `/oplvol x` - sets the volume of the OPL2 output to x percent.
+* `/sbfixtc 1|0` - fix SB time constant for 11/22/44 kHz sample rate. Can fix
+  PCM audio slightly pitched up or down in pre-SB16 games and applications.
+  Note that certain programs are already aware of SB time constant inaccuracy
+  and will sound wrong if this option is enabled. Default = 0 (disabled)
+* `/sblockmixer n` - lock writes to SB mixer settings. Choices:
+  0 - write lock disabled (default)
+  1 - lock all but Voice Volume registers (for panning effects e.g. in Wolf3D)
+  2 - lock all registers
 
 ### MPU-401 options
 
-* `/mpuport x` - sets the base port of the MPU-401. Defaults to 330.
-* `/mpudelay` - set to 1 to enable sysex delay to prevent buffer overflows on
-  older MPU-401 revisions.
-* `/mpufake` - set to 1 to fake all-notes-off for the Roland RA-50.
+These options are available in all modes.
 
-### Tandy options
+* `/mpuport x` - sets the base port of the MPU-401. Defaults to 330, 0 to
+  disable.
+* `/mpudelay 1|0` - set to 1 to enable sysex delay to prevent buffer overflows
+  on rev.0 Roland MT-32 units. Default: 0
+* `/mpufake 1|0` - set to 1 to fake all-notes-off for the Roland RA-50.
+  Default: 0
+* `/mpuwait 1|0` - set to 1 to add extra wait on busy status reads (for fast
+  PCs). Default: 0
 
-* `/tandyport x` - sets the base port of the Tandy 3-voice. Defaults to 2c0.
-* `/psgvol x` - sets the volume of the PSG output to x percent.
+### PSG (Tandy/CMS) options
 
-### CMS options
-
-* `/cmsport x` - sets the base port of the CMS. Defaults to 220.
+* `/tandyport x` - sets the base port of the Tandy 3-voice. Defaults to 2c0, 0
+  to disable.
+* `/cmsport x` - sets the base port of the CMS. Defaults to 220, 0 to disable.
 * `/psgvol x` - sets the volume of the PSG output to x percent.
 
 ### Serial mouse settings
 
 Since a COM port requires an IRQ, serial mouse emulation is possible in modes
-that do not require an IRQ: AdLib, CMS, Tandy, and USB.
+that do not require an IRQ: AdLib, PSG (Tandy/CMS), and USB.
 
 * `/mousecom n` - mouse COM port. Default: 0, Choices: 0 (disable), 1, 2, 3, 4
 * `/mouseproto n` - set mouse protocol. Default: 0 (Microsoft). Choices:
@@ -120,7 +152,8 @@ that do not require an IRQ: AdLib, CMS, Tandy, and USB.
      2 - IntelliMouse 3-button + wheel, 3 - Mouse Systems 3-button
 * `/mouserate n` - set report rate in Hz. Default: 60, Min: 20, Max: 200.
   Increase for smoother cursor movement, decrease for lower CPU load
-* `/mousesen n` - set mouse sensitivity (256 - 100%, 128 - 50%, 512 - 200%)
+* `/mousesen n` - set mouse sensitivity (256 - 100%, 128 - 50%, 512 - 200%).
+  Default: 256, Max: 1024
 
 ### CD-ROM emulation options
 
@@ -128,9 +161,23 @@ that do not require an IRQ: AdLib, CMS, Tandy, and USB.
 * `/cdlist` - list CD images on the inserted USB drive
 * `/cdload n` - load image n in the list given by /cdlist. 0 to unload image
 * `/cdloadname x` - load CD image by name. Names with spaces can be quoted
-* `/cdauto 1|0` - auto-advance loaded image when same USB drive is reinserted
+* `/cdauto 1|0` - auto-advance loaded image when same USB drive is reinserted.
+  Default: 1
 * `/cdvol x` - sets the volume of the CD audio output to x percent.
 
-## Compiling
+### NE2000/WiFi options
 
-PicoGUSinit can be compiled with OpenWatcom 1.9 or 2.0. Run `wmake` to compile.
+Only available when running the `pg-ne2k.uf2` firmware on a PicoGUS 1.x board
+with a Raspberry Pi Pico W.
+
+* `/ne2kport x` - sets the base port of the NE2000. Defaults to 300.
+* `/wifissid abc` - sets the WiFi SSID to abc. "Double quote" to use spaces.
+* `/wifipass xyz` - sets the WiFi WPA/WPA2 password/key to xyz. "Double quote"
+  to use spaces.
+* `/wifinopass` - unsets the WiFi password to connect to an open access point.
+* `/wifistatus` - prints the current WiFi status.
+
+## Compiling (developers only)
+
+If you're a developer, PicoGUSinit can be compiled with OpenWatcom 1.9 or 2.0.
+Run `wmake` to compile. pgusinit.exe comes with all firmware releases.
