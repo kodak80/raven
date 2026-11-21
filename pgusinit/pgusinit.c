@@ -71,7 +71,7 @@ static void pageprintf(char *format, ...)
 
 static void banner(void)
 {
-    printf("PicoGUSinit v3.9.0 (c) 2025 Ian Scott - licensed under the GNU GPL v2\n");
+    printf("PicoGUSinit v3.10.0 (c) 2026 Ian Scott - licensed under the GNU GPL v2\n");
 }
 
 
@@ -93,6 +93,7 @@ static void usage(card_mode_t mode, bool print_all)
     pageprintf("   /mpuport x    - set the base port of the MPU-401. Default: 330, 0 to disable\n");
     pageprintf("   /mpudelay 1|0 - delay SYSEX (for rev.0 Roland MT-32)\n");
     pageprintf("   /mpufake 1|0  - fake all notes off (for Roland RA-50)\n");
+    pageprintf("   /mpuwait 1|0  - extra wait on busy status reads (for fast PCs)\n");
     if (mode == GUS_MODE || print_all) {
         //         "...............................................................................\n"
         pageprintf("GUS settings:\n");
@@ -171,59 +172,50 @@ static const char* mouse_protocol_str[] = {
 };
 
 
-static void err_ultrasnd(void)
+// IRQs and DMAs that can be selected on the PicoGUS jumper block
+static bool picogus_irq_ok(uint16_t irq)
 {
-    //              "................................................................................\n"
-    fprintf(stderr, "ERROR: In GUS mode but no ULTRASND variable set or is malformed!\n");
-    fprintf(stderr, "The ULTRASND environment variable must be set in the following format:\n");
-    fprintf(stderr, "\tset ULTRASND=xxx,y,n,z,n\n");
-    fprintf(stderr, "Where xxx = port, y = DMA, z = IRQ. n is ignored.\n");
-    fprintf(stderr, "Port is set via /gusport xxx option; DMA and IRQ configued via jumper.\n");
+    return irq == 2 || irq == 3 || irq == 4 || irq == 5 || irq == 7 || irq == 9;
+}
+
+static bool picogus_dma_ok(uint16_t dma)
+{
+    return dma == 1 || dma == 3;
+}
+
+// Parse a whole string as a number. Returns false if empty, has trailing junk, or doesn't fit
+static bool parse_num(const char* s, int base, uint16_t* out)
+{
+    char* end;
+    unsigned long v = strtoul(s, &end, base);
+    if (end == s || *end != '\0' || v > 0xFFFF) {
+        return false;
+    }
+    *out = (uint16_t)v;
+    return true;
 }
 
 
-typedef enum {
-    BLASTER_UNSET,
-    BLASTER_MALFORMED,
-    BLASTER_DMA16_MISMATCH,
-    BLASTER_MISMATCH,
-} blaster_err_t;
+static void err_ultrasnd_format_help(void)
+{
+    //              "................................................................................\n"
+    fprintf(stderr, "The ULTRASND environment variable must be set in the following format:\n");
+    fprintf(stderr, "\tset ULTRASND=xxx,y,y,z,z\n");
+    fprintf(stderr, "Where xxx = port, y = DMA, z = IRQ.\n");
+    fprintf(stderr, "Port is set via /gusport xxx option; DMA and IRQ configued via jumper.\n");
+    fprintf(stderr, "GUS mode supports DMA 1 or 3 and IRQ 2/9, 3, 5 or 7 (4 not recommended).\n");
+}
+
 
 static void err_blaster_format_help(void)
 {
     //              "................................................................................\n"
     fprintf(stderr, "The BLASTER environment variable must be set in the following format:\n");
-    fprintf(stderr, "\tset BLASTER=Axxx Iy Dz Hz Tw\n");
-    fprintf(stderr, "Where xxx = port, y = IRQ, z = DMA. w = SB type:\n");
+    fprintf(stderr, "\tset BLASTER=Axxx Iy Dz Hz Pmmm Tw\n");
+    fprintf(stderr, "Where xxx = port, y = IRQ, z = DMA, mmm = MPU-401 port (optional), w = SB type:\n");
     fprintf(stderr, "    1 - SB 1.x,          2 - SB Pro 1 (dual OPL2), 3 - SB 2.0,\n");
     fprintf(stderr, "    4 - SB Pro 2 (OPL3), 6 - SB 16\n");
-}
-
-static void err_blaster(blaster_err_t reason)
-{
-    //                      "................................................................................\n"
-    switch (reason) {
-        case BLASTER_UNSET:
-            fprintf(stderr, "ERROR: In SB mode but BLASTER environment variable is not set!\n");
-            err_blaster_format_help();
-            fprintf(stderr, "Then run pgusinit /sbenv to apply the BLASTER settings to the card.\n");
-            break;
-        case BLASTER_MALFORMED:
-            fprintf(stderr, "ERROR: BLASTER environment variable is malformed!\n");
-            fprintf(stderr, "Current value: BLASTER=%s\n", getenv("BLASTER"));
-            err_blaster_format_help();
-            break;
-        case BLASTER_DMA16_MISMATCH:
-            fprintf(stderr, "ERROR: In SB 16 mode, low (Dx) and high (Hx) DMA in BLASTER variable must match!\n");
-            fprintf(stderr, "Current value: BLASTER=%s\n", getenv("BLASTER"));
-            break;
-        case BLASTER_MISMATCH:
-            fprintf(stderr, "ERROR: SB settings on card don't match the BLASTER environment variable!\n");
-            fprintf(stderr, "Double-check that PicoGUS is jumpered correctly for the desired IRQ and DMA,\n");
-            fprintf(stderr, "then run pgusinit /sbenv to set card resources from the BLASTER variable.\n");
-            fprintf(stderr, "Alternatively, use /sbport, /sbirq, /sbdma, /sbtype to set values directly.\n");
-            break;
-    }
+    fprintf(stderr, "PicoGUS supports DMA 1 or 3 and IRQ 2/9, 3, 4, 5 or 7.\n");
 }
 
 static void err_pigus(void)
@@ -244,16 +236,75 @@ static int init_gus(void)
 {
     char* ultrasnd = getenv("ULTRASND");
     if (ultrasnd == NULL) {
-        err_ultrasnd();
+        fprintf(stderr, "ERROR: In GUS mode but ULTRASND environment variable is not set!\n");
+        err_ultrasnd_format_help();
         return 1;
     }
 
     // Parse ULTRASND
     uint16_t port;
-    int e;
-    e = sscanf(ultrasnd, "%hx,%*hhu,%*hhu,%*hhu,%*hhu", &port);
-    if (e != 1) {
-        err_ultrasnd();
+    uint16_t res[4]; // dma1, dma2, irq1, irq2
+    bool ok = false;
+    char* s = ultrasnd;
+    char* end;
+    unsigned long v = strtoul(s, &end, 16);
+    if (end != s && v <= 0xFFFF) {
+        port = (uint16_t)v;
+        ok = true;
+        for (int i = 0; i < 4 && ok; ++i) {
+            if (*end != ',') {
+                ok = false;
+                break;
+            }
+            s = end + 1;
+            v = strtoul(s, &end, 10);
+            ok = (end != s && v <= 0xFFFF);
+            res[i] = (uint16_t)v;
+        }
+        // ignore trailing whitespace (SET in dos does not strip it)
+        while (ok && (*end == ' ' || *end == '\t')) {
+            ++end;
+        }
+        ok = ok && (*end == '\0');
+    }
+    if (!ok) {
+        fprintf(stderr, "ERROR: ULTRASND environment variable is malformed!\n");
+        fprintf(stderr, "Current value: ULTRASND=%s\n", ultrasnd);
+        err_ultrasnd_format_help();
+        return 2;
+    }
+
+    // Validate DMA and IRQ. PicoGUS has a single DMA and IRQ, so both of each must match.
+    ok = true;
+    if (res[0] != res[1]) {
+        fprintf(stderr, "ERROR: ULTRASND DMA values %u and %u must match!\n", res[0], res[1]);
+        ok = false;
+    }
+    if (res[2] != res[3]) {
+        fprintf(stderr, "ERROR: ULTRASND IRQ values %u and %u must match!\n", res[2], res[3]);
+        ok = false;
+    }
+    for (int i = 0; i < 2; ++i) {
+        if (i == 1 && res[1] == res[0]) {
+            break;
+        }
+        if (!picogus_dma_ok(res[i])) {
+            fprintf(stderr, "ERROR: ULTRASND DMA %u is not supported by PicoGUS!\n", res[i]);
+            ok = false;
+        }
+    }
+    for (int i = 2; i < 4; ++i) {
+        if (i == 3 && res[3] == res[2]) {
+            break;
+        }
+        if (!picogus_irq_ok(res[i])) {
+            fprintf(stderr, "ERROR: ULTRASND IRQ %u is not supported by PicoGUS!\n", res[i]);
+            ok = false;
+        }
+    }
+    if (!ok) {
+        fprintf(stderr, "Current value: ULTRASND=%s\n", ultrasnd);
+        err_ultrasnd_format_help();
         return 2;
     }
 
@@ -266,7 +317,11 @@ static int init_gus(void)
         outp(CONTROL_PORT, CMD_GUSPORT); // Select port register
         uint16_t tmp_port = inpw(DATA_PORT_LOW);
         if (port != tmp_port) {
-            err_ultrasnd();
+            //              "................................................................................\n"
+            fprintf(stderr, "ERROR: GUS port on card (%x) doesn't match ULTRASND variable (%x)!\n", tmp_port, port);
+            fprintf(stderr, "Current value: ULTRASND=%s\n", ultrasnd);
+            fprintf(stderr, "Run pgusinit /gusenv to set the card's port from the ULTRASND variable,\n");
+            fprintf(stderr, "or use /gusport xxx to set it directly and update ULTRASND to match.\n");
             return 2;
         }
     }
@@ -301,35 +356,87 @@ static int init_sb(void)
     // SB DSP version table
     const uint16_t dspver[] = {0, 0x105, 0x300, 0x201, 0x301, 0, 0x405};
 
+    //              "................................................................................\n"
     char* blaster = getenv("BLASTER");
     if (blaster == NULL) {
-        err_blaster(BLASTER_UNSET);
+        fprintf(stderr, "ERROR: In SB mode but BLASTER environment variable is not set!\n");
+        err_blaster_format_help();
+        fprintf(stderr, "Then run pgusinit /sbenv to apply the BLASTER settings to the card.\n");
         return 1;
     }
     char blasterTemp[256];
-    strncpy(blasterTemp, blaster, sizeof(blasterTemp));
+    strlcpy(blasterTemp, blaster, sizeof(blasterTemp));
 
     // Parse BLASTER
+    const uint16_t NOT_SET = 0xFFFF, INVALID = 0xFFFE;
+    uint16_t port = NOT_SET, irq = NOT_SET, dma8 = NOT_SET, dma16 = NOT_SET, sbtype = NOT_SET, mpuport = NOT_SET;
+    bool err = false;
     char* p = strtok(blasterTemp, " ");
-    uint16_t port = -1, irq  = -1, dma8 = -1, dma16 = -1, sbtype = 0;
     while (p != NULL) {
+        uint16_t* field = NULL;
+        int base = 10;
         switch (*p) {
-            case 'a': case 'A': port   = strtol(p + 1, NULL, 16); break;
-            case 'i': case 'I': irq    = strtol(p + 1, NULL, 10); break;
-            case 'd': case 'D': dma8   = strtol(p + 1, NULL, 10); break;
-            case 'h': case 'H': dma16  = strtol(p + 1, NULL, 10); break;
-            case 't': case 'T': sbtype = strtol(p + 1, NULL, 10); break;
+            case 'A': field = &port; base = 16;    break;
+            case 'I': field = &irq;                break;
+            case 'D': field = &dma8;               break;
+            case 'H': field = &dma16;              break;
+            case 'P': field = &mpuport; base = 16; break;
+            case 'T': field = &sbtype;             break;
             default: break;
+        }
+        if (field && !parse_num(p + 1, base, field)) {
+            fprintf(stderr, "ERROR: BLASTER setting \"%s\" has an invalid value!\n", p);
+            *field = INVALID;
+            err = true;
         }
         p = strtok(NULL, " ");
     }
 
-    if ((port == -1) || (irq == -1) || (dma8 == -1) || (sbtype > 6) || (dspver[sbtype] == 0)) {
-        err_blaster(BLASTER_MALFORMED);
-        return 2;
+    if (port == NOT_SET) {
+        fprintf(stderr, "ERROR: BLASTER variable is missing the port (Axxx)!\n");
+        err = true;
+    } else if (port != INVALID && port > 0x3FF) {
+        fprintf(stderr, "ERROR: BLASTER port A%x is out of range!\n", port);
+        err = true;
     }
-    if ((sbtype == 6) && (dma8 != dma16)) {
-        err_blaster(BLASTER_DMA16_MISMATCH);
+    if (mpuport != NOT_SET && mpuport != INVALID && mpuport > 0x3FF) {
+        fprintf(stderr, "ERROR: BLASTER MPU-401 port P%x is out of range!\n", mpuport);
+        err = true;
+    }
+    if (irq == NOT_SET) {
+        fprintf(stderr, "ERROR: BLASTER variable is missing the IRQ (Iy)!\n");
+        err = true;
+    } else if (irq != INVALID && !picogus_irq_ok(irq)) {
+        fprintf(stderr, "ERROR: BLASTER IRQ %u is not supported!\n", irq);
+        err = true;
+    }
+    if (dma8 == NOT_SET) {
+        fprintf(stderr, "ERROR: BLASTER variable is missing the DMA (Dz)!\n");
+        err = true;
+    } else if (dma8 != INVALID && !picogus_dma_ok(dma8)) {
+        fprintf(stderr, "ERROR: BLASTER DMA %u is not supported!\n", dma8);
+        err = true;
+    }
+    if (sbtype == NOT_SET) {
+        fprintf(stderr, "ERROR: BLASTER variable is missing the SB type (Tw)!\n");
+        err = true;
+    } else if ((sbtype > 6) || (dspver[sbtype] == 0)) {
+        fprintf(stderr, "ERROR: BLASTER SB type T%u is not supported!\n", sbtype);
+        err = true;
+    }
+    // High and low DMA channel must be the same on PicoGUS
+    if (dma16 == NOT_SET) {
+        if (sbtype == 6) {
+            fprintf(stderr, "ERROR: In SB16 mode, BLASTER variable needs a high DMA (Hz) matching Dz!\n");
+            err = true;
+        }
+    } else if (dma16 != INVALID && dma8 < INVALID && dma16 != dma8) {
+        fprintf(stderr, "ERROR: BLASTER high DMA (H%u) must match low DMA (D%u)!\n", dma16, dma8);
+        err = true;
+    }
+    if (err) {
+        fprintf(stderr, "Current value: BLASTER=%s\n", blaster);
+        err_blaster_format_help();
         return 2;
     }
 
@@ -346,33 +453,48 @@ static int init_sb(void)
 
         outp(CONTROL_PORT, CMD_SBTYPE); // Select SB type register
         outp(DATA_PORT_HIGH, sbtype);
+
+        if (mpuport != NOT_SET) {
+            outp(CONTROL_PORT, CMD_MPUPORT); // Select MPU port register
+            outpw(DATA_PORT_LOW, mpuport);
+        }
     } else {
         // verify BLASTER variable against current SB mode settings
         outp(CONTROL_PORT, CMD_SBPORT); // Select port register
         uint16_t tmp_port = inpw(DATA_PORT_LOW);
-        if (port != tmp_port) {
-            err_blaster(BLASTER_MISMATCH);
-            return 2;
-        }
 
         outp(CONTROL_PORT, CMD_SBIRQ); // Select IRQ register
         uint8_t tmp_irq = inp(DATA_PORT_HIGH);
-        if (irq != tmp_irq) {
-            err_blaster(BLASTER_MISMATCH);
-            return 2;
-        }
 
         outp(CONTROL_PORT, CMD_SBDMA); // Select DMA register
         uint8_t tmp_dma = inp(DATA_PORT_HIGH);
-        if (dma8 != tmp_dma) {
-            err_blaster(BLASTER_MISMATCH);
-            return 2;
-        }
 
         outp(CONTROL_PORT, CMD_SBTYPE); // Select SB type register
         uint8_t tmp_type = inp(DATA_PORT_HIGH);
-        if (sbtype != tmp_type) {
-            err_blaster(BLASTER_MISMATCH);
+
+        outp(CONTROL_PORT, CMD_MPUPORT); // Select MPU port register
+        uint16_t tmp_mpuport = inpw(DATA_PORT_LOW);
+        // MPU-401 port is optional in BLASTER and only used on SB16
+        bool mpu_mismatch = (sbtype == 6) && (mpuport != NOT_SET) && (mpuport != tmp_mpuport);
+
+        if (port != tmp_port || irq != tmp_irq || dma8 != tmp_dma || sbtype != tmp_type || mpu_mismatch) {
+            fprintf(stderr, "ERROR: SB settings on card don't match the BLASTER environment variable!\n");
+            fprintf(stderr, "Current value: BLASTER=%s\n", blaster);
+            fprintf(stderr, "Card is set to:  ");
+            if (tmp_type == 6) {
+                fprintf(stderr, "A%x I%u D%u H%u", tmp_port, tmp_irq, tmp_dma, tmp_dma);
+                if (mpuport != NOT_SET) {
+                    if (tmp_mpuport) {
+                        fprintf(stderr, " P%x", tmp_mpuport);
+                    }
+                }
+                fprintf(stderr, " T%u\n", tmp_type);
+            } else {
+                fprintf(stderr, "A%x I%u D%u T%u\n", tmp_port, tmp_irq, tmp_dma, tmp_type);
+            }
+            fprintf(stderr, "Double-check that PicoGUS is jumpered correctly for the desired IRQ and DMA,\n");
+            fprintf(stderr, "then run pgusinit /sbenv to set card resources from the BLASTER variable,\n");
+            fprintf(stderr, "or use /sbport, /sbirq, /sbdma, /sbtype and /mpuport to set values directly.\n");
             return 2;
         }
     }
@@ -502,6 +624,8 @@ static void print_cdemu_status(void)
     uint16_t tmp_uint16 = inpw(DATA_PORT_LOW); // Get port
     printf("CD-ROM emulation on port %x, image auto-advance %s\n", tmp_uint16, tmp_uint8 ? "enabled" : "disabled");
     
+    // The card may be busy after mode change so wait until it's ready
+    wait_for_cd_status();
     print_cdimage_current();
 }
 
@@ -537,8 +661,6 @@ static int reboot_to_firmware(const uint8_t value, const bool permanent)
         fprintf(stderr, "ERROR: card is not alive after rebooting to new firmware\n");
         return 99;
     }
-    printf("PicoGUS detected: Firmware version: ");
-    print_string(CMD_FWSTRING);
     return 0;
 }
 
@@ -654,7 +776,7 @@ static int write_firmware(const char* fw_filename)
         }
 
         if (i != uf2_buf.uf2.blockNo) {
-            fprintf(stderr, "\nERROR: file %s is not a valid UF2 file - block mismatch\n", fw_filename);
+            fprintf(stderr, "\nERROR: file %s is not a valid UF2 file - block mismatch (block %u of %u)\n", fw_filename, i, numBlocks);
             return 14;
         }
 
@@ -673,12 +795,12 @@ static int write_firmware(const char* fw_filename)
             }
             if (i < (numBlocks - 1) || b < 511) { // If it's not the very last byte
                 if (!wait_for_read(PICO_FIRMWARE_WRITING)) {
-                    fprintf(stderr, "\nERROR: Card is not in firmware writing mode?\n");
+                    fprintf(stderr, "\nERROR: Card is not in firmware writing mode? (block %u of %u)\n", i, numBlocks);
                     return 15;
                 }
             } else if (protocol > 1) {
                 if (!wait_for_read(PICO_FIRMWARE_DONE)) {
-                    fprintf(stderr, "\nERROR: Card has written last firmware byte but is not done\n");
+                    fprintf(stderr, "\nERROR: Card has written last firmware byte but is not done (block %u of %u)\n", i, numBlocks);
                     return 15;
                 }
                 outp(CONTROL_PORT, 0xCC); // Knock on the door...
@@ -808,10 +930,9 @@ static bool cmdSetMode(const char* arg, const int cmd, const int cmd2, const int
 
 static bool ctrlSendUint8(const char *arg, int cmd, int min, int max)
 {
-    char* endptr;
-    uint8_t val = (uint8_t)strtoul(arg, &endptr, 10);
+    uint16_t val;
 
-    if (*endptr != '\0' || val < min || val > max) {
+    if (!parse_num(arg, 10, &val) || val < min || val > max) {
         usage(gMode, false);
         return false;
     }
@@ -822,11 +943,10 @@ static bool ctrlSendUint8(const char *arg, int cmd, int min, int max)
 }
 
 static bool ctrlSendUint8Masked(const char *arg, int cmd, int min, int max, int mask, int shift) {
-    char* endptr;
-    uint8_t val = (uint8_t)strtoul(arg, &endptr, 10);
+    uint16_t val;
     uint8_t oldval = 0;
 
-    if (*endptr != '\0' || val < min || val > max) {
+    if (!parse_num(arg, 10, &val) || val < min || val > max) {
         usage(gMode, false);
         return false;
     }
@@ -843,10 +963,9 @@ static bool cmdSendUint8(const char* arg, const int cmd, const int cmd2, const i
 }
 
 static bool cmdSendSBType(const char* arg, const int cmd, const int cmd2, const int cmd3) {
-    char* endptr;
-    uint8_t val = (uint8_t)strtoul(arg, &endptr, 10);
+    uint16_t val;
 
-    if (*endptr != '\0' || val < 1 || val > 6 || val == 5) {
+    if (!parse_num(arg, 10, &val) || val < 1 || val > 6 || val == 5) {
         usage(gMode, false);
         return false;
     }
@@ -864,10 +983,9 @@ static bool cmdSendUint8Masked(const char* arg, const int cmd, const int cmd2, c
 
 static bool ctrlSendUint16(const char *arg, int cmd, long min, long max, int base)
 {
-    char *endptr;
-    uint16_t val = (uint16_t)strtoul(arg, &endptr, base);
+    uint16_t val;
 
-    if (*endptr != '\0' || val < min || val > max) {
+    if (!parse_num(arg, base, &val) || val < min || val > max) {
         usage(gMode, false);
         return false;
     }
@@ -901,9 +1019,8 @@ static bool cmdSetVol(const char* arg, const int cmd, const int cmd2, const int 
 
 static bool cmdSendMousePort(const char *arg, const int cmd, const int cmd2, const int cmd3)
 {
-    char* endptr;
-    uint8_t val = (uint8_t)strtoul(arg, &endptr, 10);
-    if (*endptr != '\0' || val > 4) {
+    uint16_t val;
+    if (!parse_num(arg, 10, &val) || val > 4) {
         usage(gMode, false);
         return false;
     }
@@ -942,7 +1059,7 @@ static bool cmdSendMouseRate(const char* arg, const int cmd, const int cmd2, con
 
 static bool cmdSendSBLockMixer(const char* arg, const int cmd, const int cmd2, const int cmd3)
 {
-    return ctrlSendUint8Masked(arg, cmd, 0, 2, (2 << 1), 1);
+    return ctrlSendUint8Masked(arg, cmd, 0, 2, (3 << 1), 1);
 }
 
 static bool cmdWifiStatus(const char* arg, const int cmd, const int cmd2, const int cmd3)
@@ -991,15 +1108,14 @@ static bool cmdCDLoad(const char* arg, const int cmd, const int cmd2, const int 
 
 static bool cmdGUSBuffer(const char* arg, const int cmd, const int cmd2, const int cmd3)
 {
-    uint8_t tmp_uint8;
-    uint8_t e = sscanf(arg, "%hhu", &tmp_uint8);
-    if (e != 1 || tmp_uint8 < 1)
+    uint16_t val;
+    if (!parse_num(arg, 10, &val) || val < 1 || val > 256)
     {
         usage(gMode, false);
         return false;
     }
     outp(CONTROL_PORT, cmd);
-    outp(DATA_PORT_HIGH, (unsigned char)(tmp_uint8 - 1));
+    outp(DATA_PORT_HIGH, (unsigned char)(val - 1));
     return true;
 }
 
@@ -1057,6 +1173,7 @@ ParseCommand parseCommands[] = {
     {"/mpuport", cmdSendPort, CMD_MPUPORT, ARG_REQUIRE, "330"},
     {"/mpudelay", cmdSendBool, CMD_MPUDELAY, ARG_REQUIRE, "false"},
     {"/mpufake", cmdSendBool, CMD_MPUFAKE, ARG_REQUIRE, "false"},
+    {"/mpuwait", cmdSendBool, CMD_MPUWAIT, ARG_REQUIRE, "false"},
     {"/tandyport", cmdSendPort, CMD_TANDYPORT, ARG_REQUIRE, "2c0"},
     {"/cmsport", cmdSendPort, CMD_CMSPORT, ARG_REQUIRE, "220"},
     {"/mousecom", cmdSendMousePort, CMD_MOUSEPORT, ARG_REQUIRE, "0"},
@@ -1155,7 +1272,8 @@ static void printPicoGus()
     uint16_t mpuPort = ctrlGetUint16(CMD_MPUPORT);
     if (mpuPort) {
         printf("MPU-401: port %x; sysex delay: %s, ", mpuPort, ctrlGetUint8(CMD_MPUDELAY) ? "on" : "off");
-        printf("fake all notes off: %s\n", ctrlGetUint8(CMD_MPUFAKE) ? "on" : "off");
+        printf("fake all notes off: %s, ", ctrlGetUint8(CMD_MPUFAKE) ? "on" : "off");
+        printf("extra wait: %s\n", ctrlGetUint8(CMD_MPUWAIT) ? "on" : "off");
     } else {
         printf("MPU-401 disabled\n");
     }
@@ -1368,16 +1486,36 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    int commands = 0;
+    // Handle /mode before other commands so they apply to the new firmware after it reboots
     for(int i = 1; i < argc; ++i) {
-        if (!parseCommand(argc, argv, &i, parseCommands)) {
+        if (!stricmp(argv[i], "/save")) {
+            permanent = true;
+        } else if (!stricmp(argv[i], "/mode")) {
+            if (!parseCommand(argc, argv, &i, parseCommands)) {
+                return 1;
+            }
+        }
+    }
+    if (newMode) {
+        int e = reboot_to_firmware(newMode, permanent);
+        if (e) {
+            return e;
+        }
+        // Re-detect the card to pick up the new mode
+        printf("\n");
+        if (initPicoGUS() != INIT_OK) {
             return 1;
         }
     }
 
-    // If mode was set in commands, apply it
-    if (newMode) {
-        return reboot_to_firmware(newMode, permanent);
+    for(int i = 1; i < argc; ++i) {
+        if (!stricmp(argv[i], "/mode")) {
+            ++i; // already handled above; skip it and its argument
+            continue;
+        }
+        if (!parseCommand(argc, argv, &i, parseCommands)) {
+            return 1;
+        }
     }
 
     if (wifichg) {
