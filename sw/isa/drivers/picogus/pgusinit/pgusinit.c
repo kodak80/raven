@@ -909,51 +909,40 @@ static int write_firmware(const char* fw_filename)
             return 14;
         }
 
-        // --- Optimized burst write: send bytes in chunks instead of per-byte wait ---
-        // Tune this value for your hardware. 16 or 32 are conservative; increase if stable.
+        // --- Burst write: send bytes in chunks, then check status once per chunk ---
+        // The card only switches from IDLE to WRITING after it has received the first byte,
+        // so the status is checked AFTER each chunk (as upstream does per byte), never before.
+        // With firmware 4.2.0+ bytes within a block are buffered without IOCHRDY waits; after
+        // the 512th byte the card reports BUSY until the block is erased/programmed.
         #ifndef FIRMWARE_BURST_SIZE
         #define FIRMWARE_BURST_SIZE 32
         #endif
 
-        const size_t block_size = 512;
-        size_t offset = 0;
+        const uint16_t block_size = 512;
+        uint16_t offset = 0;
 
         while (offset < block_size) {
-            size_t remaining = block_size - offset;
-            size_t chunk = remaining < FIRMWARE_BURST_SIZE ? remaining : FIRMWARE_BURST_SIZE;
+            uint16_t remaining = block_size - offset;
+            uint16_t chunk = remaining < FIRMWARE_BURST_SIZE ? remaining : FIRMWARE_BURST_SIZE;
 
-            // Wait until device is ready to receive the next byte(s).
-            // This replaces waiting after every byte; we wait once per chunk.
-            if (!wait_for_read(PICO_FIRMWARE_WRITING)) {
-                fprintf(stderr, "\nERROR: Card is not in firmware writing mode? (block %u of %u)\n", i, numBlocks);
-                return 15;
-            }
-
-            // Send chunk
-            for (size_t k = 0; k < chunk; ++k) {
+            for (uint16_t k = 0; k < chunk; ++k) {
                 outp(DATA_PORT_HIGH, uf2_buf.buf[offset + k]);
             }
-
             offset += chunk;
 
-            // Special-case handling for protocol 1: first-block last-byte is slow (flash erase)
-            // If we just wrote the very last byte of a block and protocol==1, keep the extra delay logic:
-            if (protocol == 1 && i == 0 && offset == block_size) {
-                // Give a bit more time to work around chipsets that release the ISA bus early.
-                delay(5000);
+            if (offset == block_size && protocol == 1) {
+                // Protocol 1 abuses IOCHRDY to pause during flash erase/write. Extra delay for
+                // chipsets that release the ISA bus early (first block takes longer: flash erase).
+                delay(i == 0 ? 5000 : 25);
             }
-        }
 
-        // After finishing a block:
-        if (i < (numBlocks - 1)) {
-            // For protocol <=1, device will expect to be in WRITING for the next block too; ensure it is
-            if (!wait_for_read(PICO_FIRMWARE_WRITING)) {
-                fprintf(stderr, "\nERROR: Card is not in firmware writing mode after block? (block %u of %u)\n", i, numBlocks);
-                return 15;
-            }
-        } else {
-            // Last block: if protocol > 1 wait for DONE; otherwise rely on existing behaviour
-            if (protocol > 1) {
+            if (i < (numBlocks - 1) || offset < block_size) { // not the very last byte
+                // Waits through BUSY at the end of a block until the card is ready again
+                if (!wait_for_read(PICO_FIRMWARE_WRITING)) {
+                    fprintf(stderr, "\nERROR: Card is not in firmware writing mode? (block %u of %u)\n", i, numBlocks);
+                    return 15;
+                }
+            } else if (protocol > 1) {
                 if (!wait_for_read(PICO_FIRMWARE_DONE)) {
                     fprintf(stderr, "\nERROR: Card has written last firmware byte but is not done (block %u of %u)\n", i, numBlocks);
                     return 15;
