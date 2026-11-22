@@ -120,6 +120,12 @@ them. Supported resources are DMA 1 or 3 and IRQ 2/9, 3, 4, 5 or 7.
   0 - write lock disabled (default)
   1 - lock all but Voice Volume registers (for panning effects e.g. in Wolf3D)
   2 - lock all registers
+* `/sbswapstereo 1|0` - swap the left and right channels of SB Pro stereo PCM.
+  In the SB Pro modes PicoGUS emulates how a real SB Pro assigns stereo samples
+  to the left and right channels, including its quirks that cause programs
+  following Creative's documentation to play with channels reversed. Use this
+  option if a program still plays with left and right reversed. Only affects
+  SB Pro-style stereo, not SB16 stereo playback. Default = 0 (disabled)
 
 ### MPU-401 options
 
